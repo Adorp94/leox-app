@@ -1,102 +1,202 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import Link from 'next/link';
+import { Building2, Users, CreditCard, FileText, ArrowRight, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+export default function HomePage() {
+  const features = [
+    {
+      icon: Building2,
+      title: 'Gestión de Torres',
+      description: 'Visualiza y administra todas las torres del proyecto con información detallada de unidades'
+    },
+    {
+      icon: Users,
+      title: 'Control de Ventas',
+      description: 'Registra y da seguimiento a todas las ventas, contratos y clientes'
+    },
+    {
+      icon: CreditCard,
+      title: 'Seguimiento de Pagos',
+      description: 'Monitorea pagos, genera estados de cuenta y gestiona la cobranza'
+    },
+    {
+      icon: FileText,
+      title: 'Documentación',
+      description: 'Administra contratos, documentos legales y reportes del proyecto'
+    }
+  ];
+
+  const benefits = [
+    'Control total de inventario y ventas',
+    'Automatización de estados de cuenta',
+    'Visualización en tiempo real del proyecto',
+    'Gestión centralizada de documentos',
+    'Reportes detallados de cobranza',
+    'Interface moderna y fácil de usar'
+  ];
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-xl border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-2">
+              <Building2 className="h-8 w-8 text-gray-900" />
+              <span className="text-2xl font-bold gradient-text">VazCRM</span>
+            </div>
+            <div className="flex space-x-4">
+              <Link href="/buyer/unit">
+                <Button variant="outline" className="border-gray-300">
+                  Acceso Comprador
+                </Button>
+              </Link>
+              <Link href="/developer">
+                <Button className="bg-gray-900 hover:bg-gray-800">
+                  Acceso Desarrollador
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 className="text-5xl font-bold gradient-text mb-6">
+              Sistema de Control de<br />Contratos Inmobiliarios
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+              Plataforma integral para la gestión de contratos, cobranza y control de proyectos 
+              inmobiliarios en preventa. Diseñado para desarrolladores y compradores.
+            </p>
+            <div className="flex justify-center space-x-4">
+              <Link href="/developer">
+                <Button size="lg" className="bg-gray-900 hover:bg-gray-800">
+                  Comenzar como Desarrollador
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+              <Link href="/buyer/unit">
+                <Button size="lg" variant="outline" className="border-gray-300">
+                  Portal del Comprador
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Funcionalidades Principales
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Herramientas completas para la gestión eficiente de proyectos inmobiliarios
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <Card key={index} className="card-hover">
+                <CardHeader className="text-center">
+                  <feature.icon className="h-12 w-12 text-gray-900 mx-auto mb-4" />
+                  <CardTitle className="text-lg">{feature.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="text-center">
+                    {feature.description}
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-6">
+                ¿Por qué elegir VazCRM?
+              </h2>
+              <p className="text-gray-600 mb-8">
+                Diseñado específicamente para el mercado inmobiliario mexicano, 
+                VazCRM ofrece todas las herramientas necesarias para gestionar 
+                proyectos de preventa de manera eficiente y profesional.
+              </p>
+              <div className="space-y-4">
+                {benefits.map((benefit, index) => (
+                  <div key={index} className="flex items-center space-x-3">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span className="text-gray-700">{benefit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="relative">
+              <div className="bg-gradient-to-br from-gray-900 to-gray-700 rounded-2xl p-8 text-white">
+                <h3 className="text-2xl font-bold mb-4">Dashboard Desarrollador</h3>
+                <p className="text-gray-300 mb-6">
+                  Control total de tu proyecto inmobiliario desde una sola plataforma
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="metric-card bg-white/10 border-white/20">
+                    <div className="text-2xl font-bold">23</div>
+                    <div className="text-sm text-gray-300">Unidades Vendidas</div>
+                  </div>
+                  <div className="metric-card bg-white/10 border-white/20">
+                    <div className="text-2xl font-bold">85%</div>
+                    <div className="text-sm text-gray-300">Progreso de Cobranza</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-gray-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Comienza a gestionar tu proyecto hoy
+          </h2>
+          <p className="text-gray-300 mb-8 max-w-2xl mx-auto">
+            Únete a los desarrolladores que ya están optimizando sus procesos de venta y cobranza
+          </p>
+          <Link href="/developer">
+            <Button size="lg" className="bg-white text-gray-900 hover:bg-gray-100">
+              Acceder al Sistema
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <Building2 className="h-6 w-6 text-gray-900" />
+              <span className="text-lg font-bold text-gray-900">VazCRM</span>
+            </div>
+            <div className="text-sm text-gray-500">
+              © 2024 VazCRM. Sistema de gestión inmobiliaria.
+            </div>
+          </div>
+        </div>
       </footer>
     </div>
   );
