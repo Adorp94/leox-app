@@ -31,7 +31,7 @@ import {
   mockUnits
 } from '@/lib/mock-data';
 
-export default function DeveloperTowersPage() {
+export default function DeveloperProductsPage() {
   // Simular usuario desarrollador (en producción vendría de autenticación)
   const user = mockUsers[2]; // Carlos Rodríguez
 
@@ -185,44 +185,6 @@ export default function DeveloperTowersPage() {
           );
         })}
 
-        {/* Summary Statistics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Resumen General del Proyecto</span>
-            </CardTitle>
-            <CardDescription>
-              Estadísticas consolidadas de todas las torres
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-2xl font-bold text-gray-900">{mockUnits.length}</p>
-                <p className="text-sm text-gray-600">Total de Unidades</p>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <p className="text-2xl font-bold text-green-600">
-                  {mockUnits.filter(u => u.status === 'sold').length}
-                </p>
-                <p className="text-sm text-green-700">Unidades Vendidas</p>
-              </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <p className="text-2xl font-bold text-blue-600">
-                  {mockUnits.filter(u => u.status === 'available').length}
-                </p>
-                <p className="text-sm text-blue-700">Unidades Disponibles</p>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <p className="text-2xl font-bold text-purple-600">
-                  {formatCurrency(mockUnits.reduce((sum, unit) => sum + unit.price, 0))}
-                </p>
-                <p className="text-sm text-purple-700">Valor Total Inventario</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </AppLayout>
   );

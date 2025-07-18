@@ -41,7 +41,7 @@ export function Sidebar({ user }: SidebarProps) {
   const developerNavigation = [
     { name: 'Dashboard', href: '/developer', icon: BarChart3 },
     { name: 'Ventas', href: '/developer/sales', icon: Users },
-    { name: 'Torres', href: '/developer/towers', icon: Building2 },
+    { name: 'Productos', href: '/developer/products', icon: Building2 },
     { name: 'Pagos', href: '/developer/payments', icon: CreditCard },
     { name: 'Contratos', href: '/developer/contracts', icon: FileText },
   ];
