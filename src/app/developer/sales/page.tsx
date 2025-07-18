@@ -34,7 +34,6 @@ import {
   FileText,
   DollarSign,
   TrendingUp,
-  BarChart3,
   Calendar
 } from 'lucide-react';
 import { useState } from 'react';
@@ -46,8 +45,7 @@ import {
   mockUsers, 
   mockSales,
   mockUnits,
-  mockPayments,
-  mockContracts
+  mockPayments
 } from '@/lib/mock-data';
 
 export default function DeveloperSalesPage() {

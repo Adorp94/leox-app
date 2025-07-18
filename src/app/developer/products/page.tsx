@@ -16,8 +16,7 @@ import {
 import { 
   Building2, 
   Eye,
-  Home,
-  Users
+  Home
 } from 'lucide-react';
 import { 
   formatCurrency, 

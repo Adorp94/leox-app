@@ -37,7 +37,6 @@ export default function DeveloperDashboardPage() {
   const totalUnits = mockUnits.length;
   const soldUnits = mockUnits.filter(unit => unit.status === 'sold').length;
   const availableUnits = mockUnits.filter(unit => unit.status === 'available').length;
-  const salesProgress = calculateProgress(soldUnits, totalUnits);
 
   const totalSalesValue = mockSales.reduce((sum, sale) => sum + sale.salePrice, 0);
   const totalPaid = mockPayments
