@@ -1,9 +1,17 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Building2, 
   Users, 
@@ -12,7 +20,8 @@ import {
   Home,
   DollarSign,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Filter
 } from 'lucide-react';
 import { 
   formatCurrency, 
@@ -21,55 +30,197 @@ import {
   calculateProgress
 } from '@/lib/format';
 import { 
-  mockUsers, 
-  mockSales, 
-  mockTowers, 
-  mockUnits,
-  mockPayments,
-  mockContracts
+  desarrolladorService,
+  proyectosService,
+  inventarioService,
+  ventasService,
+  DesarrolladorRecord,
+  ProyectoRecord,
+  InventarioRecord,
+  VentaRecord,
+  PagoRecord
+} from '@/lib/supabase';
+import { 
+  mockUsers
 } from '@/lib/mock-data';
 
 export default function DeveloperDashboardPage() {
   // Simular usuario desarrollador (en producción vendría de autenticación)
   const user = mockUsers[2]; // Carlos Rodríguez
 
-  // Calcular métricas
-  const totalUnits = mockUnits.length;
-  const soldUnits = mockUnits.filter(unit => unit.status === 'sold').length;
-  const availableUnits = mockUnits.filter(unit => unit.status === 'available').length;
+  // State for developers, projects, and data
+  const [desarrolladores, setDesarrolladores] = useState<DesarrolladorRecord[]>([]);
+  const [selectedDesarrollador, setSelectedDesarrollador] = useState<number | null>(null);
+  const [proyectos, setProyectos] = useState<ProyectoRecord[]>([]);
+  const [inventario, setInventario] = useState<InventarioRecord[]>([]);
+  const [ventas, setVentas] = useState<VentaRecord[]>([]);
+  const [pagos, setPagos] = useState<PagoRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalSalesValue = mockSales.reduce((sum, sale) => sum + sale.salePrice, 0);
-  const totalPaid = mockPayments
-    .filter(payment => payment.status === 'paid')
-    .reduce((sum, payment) => sum + payment.amount, 0);
-  const totalPending = mockPayments
-    .filter(payment => payment.status === 'pending')
-    .reduce((sum, payment) => sum + payment.amount, 0);
+  // Load initial data
+  useEffect(() => {
+    loadDesarrolladores();
+  }, []);
 
-  const pendingPayments = mockPayments.filter(payment => payment.status === 'pending');
-  const overduePayments = pendingPayments.filter(payment => 
-    new Date(payment.dueDate) < new Date()
+  // Load data when developer is selected
+  useEffect(() => {
+    if (selectedDesarrollador) {
+      loadDeveloperData(selectedDesarrollador);
+    } else {
+      // Clear data when no developer selected
+      setProyectos([]);
+      setInventario([]);
+      setVentas([]);
+      setPagos([]);
+      setLoading(false);
+    }
+  }, [selectedDesarrollador]);
+
+  const loadDesarrolladores = async () => {
+    try {
+      const data = await desarrolladorService.getDesarrolladores();
+      setDesarrolladores(data);
+      // Auto-select first developer if available
+      if (data.length > 0) {
+        setSelectedDesarrollador(data[0].id_desarrollador);
+      }
+    } catch (error) {
+      console.error('Error loading desarrolladores:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDeveloperData = async (desarrolladorId: number) => {
+    setLoading(true);
+    try {
+      const [proyectosData, inventarioData, ventasData, pagosData] = await Promise.all([
+        proyectosService.getProyectosByDesarrollador(desarrolladorId),
+        inventarioService.getInventarioByDesarrollador(desarrolladorId),
+        ventasService.getVentasContratosByDesarrollador(desarrolladorId),
+        ventasService.getPagosByDesarrollador(desarrolladorId)
+      ]);
+      
+      setProyectos(proyectosData);
+      setInventario(inventarioData);
+      setVentas(ventasData);
+      setPagos(pagosData);
+    } catch (error) {
+      console.error('Error loading developer data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate metrics based on loaded data
+  const totalUnits = inventario.length;
+  const soldUnits = inventario.filter(unit => unit.estatus === 'Vendida').length;
+  const availableUnits = inventario.filter(unit => unit.estatus === 'Disponible').length;
+
+  const totalSalesValue = ventas.reduce((sum, venta) => sum + (venta.precio_venta || 0), 0);
+  const totalPaid = pagos
+    .filter(pago => pago.estatus_pago === 'Pagado')
+    .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+  const totalPending = pagos
+    .filter(pago => pago.estatus_pago === 'Pendiente')
+    .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+
+  const pendingPayments = pagos.filter(pago => pago.estatus_pago === 'Pendiente');
+  const overduePayments = pendingPayments.filter(pago => 
+    pago.fecha_vencimiento && new Date(pago.fecha_vencimiento) < new Date()
   );
 
-  // Últimas ventas
-  const recentSales = mockSales
-    .sort((a, b) => b.saleDate.getTime() - a.saleDate.getTime())
+  // Recent sales (últimas ventas)
+  const recentSales = ventas
+    .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
     .slice(0, 5);
 
-  // Próximos vencimientos
+  // Upcoming payments (próximos vencimientos)
   const upcomingPayments = pendingPayments
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+    .filter(pago => pago.fecha_vencimiento)
+    .sort((a, b) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
     .slice(0, 5);
+
+  const selectedDesarrolladorData = desarrolladores.find(
+    d => d.id_desarrollador === selectedDesarrollador
+  );
+
+
+  if (loading && desarrolladores.length === 0) {
+    return (
+      <AppLayout user={user}>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Cargando desarrolladores...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout user={user}>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Resumen general del proyecto</p>
+        {/* Header with Developer Selection */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600">
+              {selectedDesarrolladorData 
+                ? `Resumen del desarrollador: ${selectedDesarrolladorData.nombre}`
+                : 'Selecciona un desarrollador para ver datos'
+              }
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Filter className="h-4 w-4 text-gray-500" />
+            <Select
+              value={selectedDesarrollador?.toString() || ''}
+              onValueChange={(value) => setSelectedDesarrollador(value ? parseInt(value) : null)}
+            >
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Seleccionar desarrollador" />
+              </SelectTrigger>
+              <SelectContent>
+                {desarrolladores.map((desarrollador) => (
+                  <SelectItem
+                    key={desarrollador.id_desarrollador}
+                    value={desarrollador.id_desarrollador.toString()}
+                  >
+                    {desarrollador.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
+        {!selectedDesarrollador ? (
+          <Card>
+            <CardContent className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Selecciona un Desarrollador
+                </h3>
+                <p className="text-gray-600">
+                  Elige un desarrollador del menú desplegable para ver sus proyectos, inventario y métricas.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : loading ? (
+          <Card>
+            <CardContent className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Cargando datos del desarrollador...</p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+        <>
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card>
@@ -183,23 +334,27 @@ export default function DeveloperDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentSales.map((sale) => {
-                  const unit = mockUnits.find(u => u.id === sale.unitId);
-                  return (
-                    <div key={sale.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900">{sale.buyerName}</p>
-                        <p className="text-sm text-gray-600">
-                          Unidad {unit?.number} - {unit?.tower}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900">{formatCurrency(sale.salePrice)}</p>
-                        <p className="text-xs text-gray-500">{formatDate(sale.saleDate)}</p>
-                      </div>
+                {recentSales.length > 0 ? recentSales.map((venta, index) => (
+                  <div key={venta.id_venta || index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {venta.clientes?.nombre_cliente || `Cliente ID: ${venta.id_cliente}`}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Unidad {venta.inventario?.num_unidad || 'N/A'}
+                      </p>
                     </div>
-                  );
-                })}
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">{formatCurrency(venta.precio_venta || 0)}</p>
+                      <p className="text-xs text-gray-500">{formatDate(new Date(venta.fecha_venta))}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No hay ventas recientes</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -217,119 +372,131 @@ export default function DeveloperDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {upcomingPayments.map((payment) => {
-                  const contract = mockContracts.find(c => c.id === payment.contractId);
-                  const unit = contract ? mockUnits.find(u => u.id === contract.unitId) : null;
-                  const isOverdue = new Date(payment.dueDate) < new Date();
+                {upcomingPayments.length > 0 ? upcomingPayments.map((pago, index) => {
+                  const isOverdue = pago.fecha_vencimiento && new Date(pago.fecha_vencimiento) < new Date();
                   
                   return (
-                    <div key={payment.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div key={pago.id_pago || index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-medium text-gray-900">
-                          Unidad {unit?.number} - {unit?.tower}
+                          Unidad {pago.ventas_contratos?.inventario?.num_unidad || 'N/A'}
                         </p>
                         <div className="flex items-center space-x-2">
-                          <p className="text-sm text-gray-600">{formatDate(payment.dueDate)}</p>
+                          <p className="text-sm text-gray-600">
+                            {pago.fecha_vencimiento ? formatDate(new Date(pago.fecha_vencimiento)) : 'Sin fecha'}
+                          </p>
                           {isOverdue && (
                             <Badge className="bg-red-100 text-red-800 text-xs">Vencido</Badge>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-gray-900">{formatCurrency(payment.amount)}</p>
+                        <p className="font-semibold text-gray-900">{formatCurrency(pago.monto || 0)}</p>
                       </div>
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No hay pagos próximos</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Towers Overview */}
+        {/* Projects Overview */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Building2 className="h-5 w-5" />
-              <span>Resumen por Fase</span>
+              <span>Resumen por Proyecto</span>
             </CardTitle>
             <CardDescription>
-              Estado de ventas y cobranza por cada fase del proyecto
+              Estado de ventas y cobranza por cada proyecto del desarrollador
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {mockTowers.map((tower) => {
-                // Calculate financial metrics for each tower
-                const towerUnits = tower.units.filter(unit => unit.status === 'sold');
-                const towerSoldValue = towerUnits.reduce((sum, unit) => sum + unit.price, 0);
+              {proyectos.length > 0 ? proyectos.map((proyecto) => {
+                // Calculate metrics for each project
+                const projectUnits = inventario.filter(unit => unit.id_proyecto === proyecto.id_proyecto);
+                const projectSoldUnits = projectUnits.filter(unit => unit.estatus === 'Vendida');
                 
-                // Get contracts for this tower's sold units
-                const towerContracts = mockContracts.filter(contract => 
-                  towerUnits.some(unit => unit.id === contract.unitId)
+                // Get sales for this project
+                const projectSales = ventas.filter(venta => 
+                  venta.inventario?.id_proyecto === proyecto.id_proyecto
                 );
+                const projectSoldValue = projectSales.reduce((sum, venta) => sum + (venta.precio_venta || 0), 0);
                 
-                // Calculate collected amount for this tower
-                const towerCollected = mockPayments
-                  .filter(payment => 
-                    payment.status === 'paid' && 
-                    towerContracts.some(contract => contract.id === payment.contractId)
-                  )
-                  .reduce((sum, payment) => sum + payment.amount, 0);
+                // Get payments for this project
+                const projectPayments = pagos.filter(pago => 
+                  pago.ventas_contratos?.inventario?.id_proyecto === proyecto.id_proyecto
+                );
+                const projectCollected = projectPayments
+                  .filter(pago => pago.estatus_pago === 'Pagado')
+                  .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+                const projectPending = projectPayments
+                  .filter(pago => pago.estatus_pago === 'Pendiente')
+                  .reduce((sum, pago) => sum + (pago.monto || 0), 0);
                 
-                // Calculate pending amount for this tower
-                const towerPending = mockPayments
-                  .filter(payment => 
-                    payment.status === 'pending' && 
-                    towerContracts.some(contract => contract.id === payment.contractId)
-                  )
-                  .reduce((sum, payment) => sum + payment.amount, 0);
+                const salesProgress = projectUnits.length > 0 
+                  ? (projectSoldUnits.length / projectUnits.length) * 100 
+                  : 0;
                 
                 return (
-                  <div key={tower.id} className="p-4 border border-gray-200 rounded-lg">
+                  <div key={proyecto.id_proyecto} className="p-4 border border-gray-200 rounded-lg">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h3 className="font-semibold text-gray-900">{tower.name}</h3>
+                        <h3 className="font-semibold text-gray-900">{proyecto.nombre}</h3>
                         <p className="text-sm text-gray-600">
-                          Entrega: {formatDate(tower.deliveryDate)}
+                          {projectUnits.length} unidades totales
                         </p>
                       </div>
                       <Badge variant="outline">
-                        {tower.soldUnits}/{tower.totalUnits}
+                        {projectSoldUnits.length}/{projectUnits.length}
                       </Badge>
                     </div>
                     <div className="space-y-3">
                       <div className="grid grid-cols-1 gap-2">
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Vendido ($)</span>
-                          <span className="font-semibold text-blue-600">{formatCurrency(towerSoldValue)}</span>
+                          <span className="font-semibold text-blue-600">{formatCurrency(projectSoldValue)}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Cobrado ($)</span>
-                          <span className="font-semibold text-green-600">{formatCurrency(towerCollected)}</span>
+                          <span className="font-semibold text-green-600">{formatCurrency(projectCollected)}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Cuentas por cobrar ($)</span>
-                          <span className="font-semibold text-orange-600">{formatCurrency(towerPending)}</span>
+                          <span className="font-semibold text-orange-600">{formatCurrency(projectPending)}</span>
                         </div>
                       </div>
                       <div className="pt-2">
                         <div className="flex justify-between text-sm mb-1">
                           <span>Progreso de ventas</span>
-                          <span>{Math.round((tower.soldUnits / tower.totalUnits) * 100)}%</span>
+                          <span>{Math.round(salesProgress)}%</span>
                         </div>
                         <Progress 
-                          value={(tower.soldUnits / tower.totalUnits) * 100} 
+                          value={salesProgress} 
                           className="h-2"
                         />
                       </div>
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <div className="col-span-2 text-center py-8 text-gray-500">
+                  <Building2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No hay proyectos para este desarrollador</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
     </AppLayout>
   );
