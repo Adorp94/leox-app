@@ -37,8 +37,6 @@ import {
   DesarrolladorRecord,
   ProyectoRecord,
   InventarioRecord,
-  VentaRecord,
-  PagoRecord
 } from '@/lib/supabase';
 import { 
   mockUsers
@@ -53,8 +51,8 @@ export default function DeveloperDashboardPage() {
   const [selectedDesarrollador, setSelectedDesarrollador] = useState<number | null>(null);
   const [proyectos, setProyectos] = useState<ProyectoRecord[]>([]);
   const [inventario, setInventario] = useState<InventarioRecord[]>([]);
-  const [ventas, setVentas] = useState<VentaRecord[]>([]);
-  const [pagos, setPagos] = useState<PagoRecord[]>([]);
+  const [ventas, setVentas] = useState<unknown[]>([]);
+  const [pagos, setPagos] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Load initial data
@@ -117,28 +115,28 @@ export default function DeveloperDashboardPage() {
   const soldUnits = inventario.filter(unit => unit.estatus === 'Vendida').length;
   const availableUnits = inventario.filter(unit => unit.estatus === 'Disponible').length;
 
-  const totalSalesValue = ventas.reduce((sum, venta) => sum + (venta.precio_venta || 0), 0);
+  const totalSalesValue = ventas.reduce((sum: number, venta: any) => sum + (venta.precio_venta || 0), 0);
   const totalPaid = pagos
-    .filter(pago => pago.estatus_pago === 'Pagado')
-    .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+    .filter((pago: any) => pago.estatus_pago === 'Pagado')
+    .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
   const totalPending = pagos
-    .filter(pago => pago.estatus_pago === 'Pendiente')
-    .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+    .filter((pago: any) => pago.estatus_pago === 'Pendiente')
+    .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
 
-  const pendingPayments = pagos.filter(pago => pago.estatus_pago === 'Pendiente');
-  const overduePayments = pendingPayments.filter(pago => 
+  const pendingPayments = pagos.filter((pago: any) => pago.estatus_pago === 'Pendiente');
+  const overduePayments = pendingPayments.filter((pago: any) => 
     pago.fecha_vencimiento && new Date(pago.fecha_vencimiento) < new Date()
   );
 
   // Recent sales (últimas ventas)
   const recentSales = ventas
-    .sort((a, b) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
+    .sort((a: any, b: any) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
     .slice(0, 5);
 
   // Upcoming payments (próximos vencimientos)
   const upcomingPayments = pendingPayments
-    .filter(pago => pago.fecha_vencimiento)
-    .sort((a, b) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
+    .filter((pago: any) => pago.fecha_vencimiento)
+    .sort((a: any, b: any) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
     .slice(0, 5);
 
   const selectedDesarrolladorData = desarrolladores.find(
@@ -335,7 +333,7 @@ export default function DeveloperDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentSales.length > 0 ? recentSales.map((venta, index) => (
+                {recentSales.length > 0 ? recentSales.map((venta: any, index) => (
                   <div key={venta.id_venta || index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-foreground">
@@ -373,7 +371,7 @@ export default function DeveloperDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {upcomingPayments.length > 0 ? upcomingPayments.map((pago, index) => {
+                {upcomingPayments.length > 0 ? upcomingPayments.map((pago: any, index) => {
                   const isOverdue = pago.fecha_vencimiento && new Date(pago.fecha_vencimiento) < new Date();
                   
                   return (
@@ -426,21 +424,21 @@ export default function DeveloperDashboardPage() {
                 const projectSoldUnits = projectUnits.filter(unit => unit.estatus === 'Vendida');
                 
                 // Get sales for this project
-                const projectSales = ventas.filter(venta => 
+                const projectSales = ventas.filter((venta: any) => 
                   venta.inventario?.id_proyecto === proyecto.id_proyecto
                 );
-                const projectSoldValue = projectSales.reduce((sum, venta) => sum + (venta.precio_venta || 0), 0);
+                const projectSoldValue = projectSales.reduce((sum: number, venta: any) => sum + (venta.precio_venta || 0), 0);
                 
                 // Get payments for this project
-                const projectPayments = pagos.filter(pago => 
+                const projectPayments = pagos.filter((pago: any) => 
                   pago.ventas_contratos?.inventario?.id_proyecto === proyecto.id_proyecto
                 );
                 const projectCollected = projectPayments
-                  .filter(pago => pago.estatus_pago === 'Pagado')
-                  .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+                  .filter((pago: any) => pago.estatus_pago === 'Pagado')
+                  .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
                 const projectPending = projectPayments
-                  .filter(pago => pago.estatus_pago === 'Pendiente')
-                  .reduce((sum, pago) => sum + (pago.monto || 0), 0);
+                  .filter((pago: any) => pago.estatus_pago === 'Pendiente')
+                  .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
                 
                 const salesProgress = projectUnits.length > 0 
                   ? (projectSoldUnits.length / projectUnits.length) * 100 

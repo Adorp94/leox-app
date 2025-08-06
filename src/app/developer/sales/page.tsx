@@ -1,7 +1,7 @@
 'use client';
 
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -65,8 +65,6 @@ import {
 import { mockUsers } from '@/lib/mock-data';
 import { 
   ventasService, 
-  VentaContratoRecord,
-  VentaPagoRecord,
   inventarioService, 
   InventarioRecord,
   proyectosService,
@@ -79,8 +77,8 @@ export default function DeveloperSalesPage() {
   // State management
   const [projects, setProjects] = useState<ProyectoRecord[]>([]);
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
-  const [ventas, setVentas] = useState<any[]>([]);
-  const [pagos, setPagos] = useState<any[]>([]);
+  const [ventas, setVentas] = useState<unknown[]>([]);
+  const [pagos, setPagos] = useState<unknown[]>([]);
   const [inventario, setInventario] = useState<InventarioRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,18 +147,18 @@ export default function DeveloperSalesPage() {
   }, [selectedProject]);
 
   // Calculate KPIs
-  const currentProject = projects.find(p => p.id_proyecto === selectedProject);
+  // const currentProject = projects.find(p => p.id_proyecto === selectedProject);
   const totalUnitsInProject = inventario.length;
   const totalSales = ventas.length;
   const salesPercentage = totalUnitsInProject > 0 ? Math.round((totalSales / totalUnitsInProject) * 100) : 0;
   
   const totalVentasAmount = ventas
-    .filter(v => v.estatus === 'Vendida')
-    .reduce((sum, v) => sum + v.precio_venta, 0);
+    .filter((v: any) => v.estatus === 'Vendida')
+    .reduce((sum: number, v: any) => sum + v.precio_venta, 0);
   
   const totalCollected = pagos
-    .filter(p => p.estatus_pago === 'Pagado')
-    .reduce((sum, p) => sum + p.monto, 0);
+    .filter((p: any) => p.estatus_pago === 'Pagado')
+    .reduce((sum: number, p: any) => sum + p.monto, 0);
   
   const totalPending = totalVentasAmount - totalCollected;
   
@@ -174,12 +172,13 @@ export default function DeveloperSalesPage() {
   const absorptionRate = totalSales / monthsElapsed;
 
   // Categorize pagos by status
-  const getPaymentStatus = (pago: any) => {
-    const dueDate = new Date(pago.fecha_vencimiento || pago.fecha_pago);
+  const getPaymentStatus = (pago: unknown) => {
+    const pagoObj = pago as Record<string, unknown>;
+    const dueDate = new Date((pagoObj.fecha_vencimiento || pagoObj.fecha_pago) as string);
     const today = new Date();
     const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
-    if (pago.estatus_pago === 'Pagado') return 'paid';
+    if (pagoObj.estatus_pago === 'Pagado') return 'paid';
     if (daysDiff < 0) return 'overdue';
     if (daysDiff <= 7) return 'due-soon';
     return 'upcoming';
@@ -187,7 +186,7 @@ export default function DeveloperSalesPage() {
 
   // Process pagos with payment numbering and client grouping
   const processedPagos = pagos
-    .sort((a, b) => {
+    .sort((a: any, b: any) => {
       // First sort by client name
       const clientA = `${a.ventas_contratos?.clientes?.nombre} ${a.ventas_contratos?.clientes?.apellidos}`.trim();
       const clientB = `${b.ventas_contratos?.clientes?.nombre} ${b.ventas_contratos?.clientes?.apellidos}`.trim();
@@ -196,7 +195,7 @@ export default function DeveloperSalesPage() {
       // Then sort by payment date
       return new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime();
     })
-    .map((pago, index, arr) => {
+    .map((pago: any, index: any, arr: any) => {
       const clientName = `${pago.ventas_contratos?.clientes?.nombre} ${pago.ventas_contratos?.clientes?.apellidos}`.trim();
       
       // Calculate payment number for this client
@@ -216,16 +215,16 @@ export default function DeveloperSalesPage() {
     });
 
   // Get unique clients for filter
-  const uniqueClients = Array.from(new Set(processedPagos.map(p => p.clientName))).sort();
+  const uniqueClients = Array.from(new Set(processedPagos.map((p: any) => p.clientName))).sort();
   
   // Filter pagos based on selected client
   const filteredPagos = selectedClient 
-    ? processedPagos.filter(p => p.clientName === selectedClient)
+    ? processedPagos.filter((p: any) => p.clientName === selectedClient)
     : processedPagos;
 
-  const paidPagos = filteredPagos.filter(p => getPaymentStatus(p) === 'paid');
-  const overduePagos = filteredPagos.filter(p => getPaymentStatus(p) === 'overdue');
-  const upcomingPagos = filteredPagos.filter(p => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
+  const paidPagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
+  const overduePagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'overdue');
+  const upcomingPagos = filteredPagos.filter((p: any) => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
 
   if (error) {
     return (
@@ -292,7 +291,7 @@ export default function DeveloperSalesPage() {
                     <SelectValue placeholder="Selecciona un proyecto..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {projects.map(project => (
+                    {projects.map((project: any) => (
                       <SelectItem key={project.id_proyecto} value={project.id_proyecto.toString()}>
                         <span className="font-medium text-sm">{project.nombre}</span>
                       </SelectItem>
@@ -439,7 +438,7 @@ export default function DeveloperSalesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {ventas.map((venta) => (
+                      {ventas.map((venta: any) => (
                         <TableRow key={venta.id_venta} className="hover:bg-gray-50/50 transition-colors">
                           <TableCell className="py-2">
                             <p className="font-medium text-gray-900 text-sm">
@@ -546,7 +545,7 @@ export default function DeveloperSalesPage() {
                               />
                               Todos los clientes
                             </CommandItem>
-                            {uniqueClients.map((client) => (
+                            {uniqueClients.map((client: any) => (
                               <CommandItem
                                 key={client}
                                 onSelect={() => {
@@ -592,7 +591,7 @@ export default function DeveloperSalesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredPagos.map((pago) => {
+                          {filteredPagos.map((pago: any) => {
                             const status = getPaymentStatus(pago);
                             return (
                               <TableRow key={pago.id_pago} className="hover:bg-gray-50/50 transition-colors">
@@ -675,7 +674,7 @@ export default function DeveloperSalesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {paidPagos.map((pago) => (
+                          {paidPagos.map((pago: any) => (
                             <TableRow key={pago.id_pago} className="hover:bg-gray-50/50 transition-colors">
                               <TableCell className="py-2">
                                 <p className="font-medium text-gray-900 text-sm">
@@ -727,8 +726,8 @@ export default function DeveloperSalesPage() {
                         </TableHeader>
                         <TableBody>
                           {[...overduePagos, ...upcomingPagos]
-                            .sort((a, b) => new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime())
-                            .map((pago) => {
+                            .sort((a: any, b: any) => new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime())
+                            .map((pago: any) => {
                               const status = getPaymentStatus(pago);
                               return (
                                 <TableRow key={pago.id_pago} className="hover:bg-gray-50/50 transition-colors">
