@@ -56,8 +56,8 @@ export function Sidebar({ user }: SidebarProps) {
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         {!isCollapsed && (
           <div>
-            <h1 className="text-xl font-bold gradient-text">VazCRM</h1>
-            <p className="text-xs text-gray-500">Sistema Inmobiliario</p>
+            <h1 className="text-xl font-bold gradient-text">Leox</h1>
+            <p className="text-xs text-gray-500">Preventas</p>
           </div>
         )}
         <Button
@@ -96,15 +96,21 @@ export function Sidebar({ user }: SidebarProps) {
         {navigation.map((item) => {
           const isActive = pathname === item.href;
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`nav-item ${isActive ? 'active' : ''} ${
-                isCollapsed ? 'justify-center' : ''
-              }`}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!isCollapsed && <span className="text-sm">{item.name}</span>}
+            <Link key={item.name} href={item.href}>
+              <Button
+                variant="ghost"
+                className={`w-full justify-start ${
+                  isCollapsed ? 'px-2' : ''
+                } ${
+                  isActive 
+                    ? 'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 font-medium border-l-4 border-l-blue-500' 
+                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                }`}
+                size="sm"
+              >
+                <item.icon className="h-4 w-4 flex-shrink-0" />
+                {!isCollapsed && <span className="ml-2">{item.name}</span>}
+              </Button>
             </Link>
           );
         })}
@@ -112,21 +118,28 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 space-y-1">
-        <Link
-          href="/settings"
-          className={`nav-item ${isCollapsed ? 'justify-center' : ''}`}
-        >
-          <Settings className="h-5 w-5 flex-shrink-0" />
-          {!isCollapsed && <span className="text-sm">Configuración</span>}
+        <Link href="/settings">
+          <Button
+            variant="ghost"
+            className={`w-full justify-start ${
+              isCollapsed ? 'px-2' : ''
+            }`}
+            size="sm"
+          >
+            <Settings className="h-4 w-4 flex-shrink-0" />
+            {!isCollapsed && <span className="ml-2">Configuración</span>}
+          </Button>
         </Link>
-        <button
-          className={`nav-item w-full text-red-600 hover:bg-red-50 ${
-            isCollapsed ? 'justify-center' : ''
+        <Button
+          variant="ghost"
+          className={`w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 ${
+            isCollapsed ? 'px-2' : ''
           }`}
+          size="sm"
         >
-          <LogOut className="h-5 w-5 flex-shrink-0" />
-          {!isCollapsed && <span className="text-sm">Cerrar Sesión</span>}
-        </button>
+          <LogOut className="h-4 w-4 flex-shrink-0" />
+          {!isCollapsed && <span className="ml-2">Cerrar Sesión</span>}
+        </Button>
       </div>
     </div>
   );

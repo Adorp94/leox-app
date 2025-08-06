@@ -3,25 +3,25 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 215 25% 27%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 25% 27%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --popover-foreground: 215 25% 27%;
+    --primary: 215 25% 27%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 220 13% 95%;
+    --secondary-foreground: 215 25% 27%;
+    --muted: 220 13% 95%;
+    --muted-foreground: 215 16% 57%;
+    --accent: 220 13% 95%;
+    --accent-foreground: 215 25% 27%;
+    --destructive: 0 70% 65%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 215 25% 27%;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -66,10 +66,38 @@
   }
   
   .gradient-text {
-    background: linear-gradient(to right, rgb(17, 24, 39), rgb(75, 85, 99));
+    background: linear-gradient(to right, hsl(var(--foreground)), hsl(var(--muted-foreground)));
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
+  }
+  
+  .text-success {
+    color: #10b981;
+  }
+  
+  .text-info {
+    color: #3b82f6;
+  }
+  
+  .text-warning {
+    color: #f59e0b;
+  }
+  
+  .text-danger {
+    color: #ef4444;
+  }
+  
+  .text-accent {
+    color: #8b5cf6;
+  }
+  
+  .text-soft {
+    color: #64748b;
+  }
+  
+  .text-softer {
+    color: #94a3b8;
   }
   
   .card-hover {
@@ -108,21 +136,23 @@
     gap: 0.75rem;
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
-    color: rgb(55, 65, 81);
-    transition: colors 0.15s;
+    color: hsl(var(--muted-foreground));
+    transition: all 0.15s;
+    text-decoration: none;
   }
   
   .nav-item:hover {
-    background-color: rgb(243, 244, 246);
+    background-color: hsl(var(--muted));
+    color: hsl(var(--foreground));
   }
   
   .nav-item.active {
-    background-color: rgb(17, 24, 39);
-    color: white;
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
   }
   
   .nav-item.active:hover {
-    background-color: rgb(31, 41, 55);
+    background-color: hsl(var(--primary) / 0.9);
   }
   
   .progress-bar {

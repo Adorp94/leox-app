@@ -46,7 +46,7 @@ export default function HomePage() {
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-2">
               <Building2 className="h-8 w-8 text-gray-900" />
-              <span className="text-2xl font-bold gradient-text">VazCRM</span>
+              <span className="text-2xl font-bold gradient-text">Leox Preventas</span>
             </div>
             <div className="flex space-x-4">
               <Link href="/buyer/unit">
@@ -55,7 +55,7 @@ export default function HomePage() {
                 </Button>
               </Link>
               <Link href="/developer">
-                <Button className="bg-gray-900 hover:bg-gray-800">
+                <Button className="bg-gray-900 hover:bg-gray-800 text-white">
                   Acceso Desarrollador
                 </Button>
               </Link>
@@ -77,7 +77,7 @@ export default function HomePage() {
             </p>
             <div className="flex justify-center space-x-4">
               <Link href="/developer">
-                <Button size="lg" className="bg-gray-900 hover:bg-gray-800">
+                <Button size="lg" className="bg-gray-900 hover:bg-gray-800 text-white">
                   Comenzar como Desarrollador
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -128,11 +128,11 @@ export default function HomePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 mb-6">
-                ¿Por qué elegir VazCRM?
+                ¿Por qué elegir Leox Preventas?
               </h2>
               <p className="text-gray-600 mb-8">
                 Diseñado específicamente para el mercado inmobiliario mexicano, 
-                VazCRM ofrece todas las herramientas necesarias para gestionar 
+                Leox Preventas ofrece todas las herramientas necesarias para gestionar 
                 proyectos de preventa de manera eficiente y profesional.
               </p>
               <div className="space-y-4">
@@ -190,10 +190,10 @@ export default function HomePage() {
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <Building2 className="h-6 w-6 text-gray-900" />
-              <span className="text-lg font-bold text-gray-900">VazCRM</span>
+              <span className="text-lg font-bold text-gray-900">Leox Preventas</span>
             </div>
             <div className="text-sm text-gray-500">
-              © 2024 VazCRM. Sistema de gestión inmobiliaria.
+              © 2024 Leox Preventas. Sistema de gestión inmobiliaria.
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VazCRM - Sistema de Control de Contratos Inmobiliarios",
+  title: "Leox - Preventas",
   description: "Sistema integral para el control de contratos y cobranza de proyectos inmobiliarios en preventa",
   keywords: ["inmobiliaria", "contratos", "cobranza", "proyectos", "residential"],
 };
