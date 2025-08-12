@@ -64,8 +64,14 @@ const navigationItems = [
   },
   {
     title: "Ventas",
-    href: "/developer/sales",
+    href: "/developer/ventas",
     icon: ShoppingCart,
+    roles: ["developer"],
+  },
+  {
+    title: "Cobranza",
+    href: "/developer/cobranza",
+    icon: LineChart,
     roles: ["developer"],
   },
   {

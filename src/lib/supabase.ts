@@ -127,19 +127,44 @@ export const ventasService = {
     return data;
   },
 
-  // Get sales contracts by project
+  // Get sales contracts by project using the complete view
   async getVentasContratosByProject(proyectoId: number) {
+    // First get project name to filter by
+    const { data: proyecto, error: proyectoError } = await supabase
+      .from('proyectos')
+      .select('nombre')
+      .eq('id_proyecto', proyectoId)
+      .single();
+    
+    if (proyectoError) throw proyectoError;
+    
     const { data, error } = await supabase
-      .from('ventas_contratos')
-      .select(`
-        *,
-        inventario!inner(num_unidad, id_proyecto)
-      `)
-      .eq('inventario.id_proyecto', proyectoId)
+      .from('vw_cliente_panel')
+      .select('*')
+      .eq('proyecto_nombre', proyecto.nombre)
       .order('fecha_venta', { ascending: false });
     
     if (error) throw error;
-    return data;
+    
+    // Transform data to match expected interface
+    return data?.map(item => ({
+      id_venta: item.id_venta,
+      id_cliente: item.id_cliente,
+      id_inventario: 0, // Not needed in view
+      fecha_venta: item.fecha_venta,
+      precio_lista: item.precio_lista,
+      precio_venta: item.precio_venta,
+      estatus: item.estatus,
+      categoria: 'Departamento',
+      clientes: {
+        nombre_cliente: item.nombre_cliente,
+        correo: null // Not available in view but could be added
+      },
+      inventario: {
+        num_unidad: item.num_unidad,
+        id_proyecto: proyectoId
+      }
+    })) || [];
   },
 
   // Get all payment records
@@ -160,23 +185,45 @@ export const ventasService = {
     return data;
   },
 
-  // Get payment records by project
+  // Get payment records by project using the complete view
   async getPagosByProject(proyectoId: number) {
+    // First get project name to filter by
+    const { data: proyecto, error: proyectoError } = await supabase
+      .from('proyectos')
+      .select('nombre')
+      .eq('id_proyecto', proyectoId)
+      .single();
+    
+    if (proyectoError) throw proyectoError;
+    
     const { data, error } = await supabase
-      .from('venta_pagos')
-      .select(`
-        *,
-        ventas_contratos!inner(
-          id_cliente,
-          id_inventario,
-          inventario!inner(num_unidad, id_proyecto)
-        )
-      `)
-      .eq('ventas_contratos.inventario.id_proyecto', proyectoId)
+      .from('vw_historial_pagos')
+      .select('*')
+      .eq('proyecto_nombre', proyecto.nombre)
       .order('fecha_pago', { ascending: false });
     
     if (error) throw error;
-    return data;
+    
+    // Transform to match PagoRecord interface
+    return data?.map(item => ({
+      id_pago: item.id_pago,
+      id_venta: item.id_venta,
+      monto: item.monto,
+      fecha_pago: item.fecha_pago,
+      fecha_vencimiento: item.fecha_vencimiento,
+      concepto_pago: item.concepto_pago,
+      estatus_pago: item.estatus_pago,
+      ventas_contratos: {
+        clientes: {
+          nombre_cliente: item.nombre_cliente,
+          correo: null // Not available in view
+        },
+        inventario: {
+          num_unidad: item.num_unidad,
+          id_proyecto: proyectoId
+        }
+      }
+    })) || [];
   },
 
   // Get sales contracts by desarrollador using the view
