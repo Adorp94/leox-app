@@ -1,7 +1,9 @@
 'use client';
 
-import { Sidebar } from './Sidebar';
+import { AppSidebar } from './AppSidebar';
+import { AppHeader } from './AppHeader';
 import { User } from '@/types';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -10,13 +12,14 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, user }: AppLayoutProps) {
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar user={user} />
-      <main className="flex-1 overflow-auto">
-        <div className="p-6">
+    <SidebarProvider>
+      <AppSidebar user={user} />
+      <SidebarInset>
+        <AppHeader user={user} />
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           {children}
         </div>
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 } 

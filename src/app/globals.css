@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@source "src/**/*.{js,ts,jsx,tsx}";
+@custom-variant dark (&:is(.dark *));
 
 @layer base {
   :root {
@@ -64,51 +68,51 @@
     background-color: rgba(255, 255, 255, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.2);
   }
-  
+
   .gradient-text {
     background: linear-gradient(to right, hsl(var(--foreground)), hsl(var(--muted-foreground)));
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
   }
-  
+
   .text-success {
     color: #10b981;
   }
-  
+
   .text-info {
     color: #3b82f6;
   }
-  
+
   .text-warning {
     color: #f59e0b;
   }
-  
+
   .text-danger {
     color: #ef4444;
   }
-  
+
   .text-accent {
     color: #8b5cf6;
   }
-  
+
   .text-soft {
     color: #64748b;
   }
-  
+
   .text-softer {
     color: #94a3b8;
   }
-  
+
   .card-hover {
     transition: all 0.2s;
   }
-  
+
   .card-hover:hover {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     transform: scale(1.02);
   }
-  
+
   .status-indicator {
     display: inline-flex;
     align-items: center;
@@ -117,7 +121,7 @@
     font-size: 0.75rem;
     font-weight: 500;
   }
-  
+
   .metric-card {
     background-color: white;
     border-radius: 0.75rem;
@@ -125,11 +129,11 @@
     padding: 1.5rem;
     transition: all 0.2s;
   }
-  
+
   .metric-card:hover {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   }
-  
+
   .nav-item {
     display: flex;
     align-items: center;
@@ -140,28 +144,28 @@
     transition: all 0.15s;
     text-decoration: none;
   }
-  
+
   .nav-item:hover {
     background-color: hsl(var(--muted));
     color: hsl(var(--foreground));
   }
-  
+
   .nav-item.active {
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
   }
-  
+
   .nav-item.active:hover {
     background-color: hsl(var(--primary) / 0.9);
   }
-  
+
   .progress-bar {
     width: 100%;
     height: 0.5rem;
     background-color: rgb(229, 231, 235);
     border-radius: 9999px;
   }
-  
+
   .progress-fill {
     height: 0.5rem;
     background: linear-gradient(to right, rgb(59, 130, 246), rgb(37, 99, 235));
@@ -203,4 +207,67 @@ html {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
   outline: 2px solid transparent;
   outline-offset: 2px;
+}
+
+:root {
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
 }
