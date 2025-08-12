@@ -21,7 +21,8 @@ import {
   DollarSign,
   Calendar,
   AlertCircle,
-  Filter
+  Filter,
+  MousePointer
 } from 'lucide-react';
 import { 
   formatCurrency, 
@@ -49,11 +50,18 @@ export default function DeveloperDashboardPage() {
   // State for developers, projects, and data
   const [desarrolladores, setDesarrolladores] = useState<DesarrolladorRecord[]>([]);
   const [selectedDesarrollador, setSelectedDesarrollador] = useState<number | null>(null);
+  const [selectedProyecto, setSelectedProyecto] = useState<number | null>(null);
   const [proyectos, setProyectos] = useState<ProyectoRecord[]>([]);
   const [inventario, setInventario] = useState<InventarioRecord[]>([]);
   const [ventas, setVentas] = useState<unknown[]>([]);
   const [pagos, setPagos] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dashboardMetrics, setDashboardMetrics] = useState({
+    totalSalesValue: 0,
+    totalPaid: 0,
+    totalPending: 0
+  });
+  const [proyectosSummary, setProyectosSummary] = useState<any[]>([]);
 
   // Load initial data
   useEffect(() => {
@@ -70,9 +78,22 @@ export default function DeveloperDashboardPage() {
       setInventario([]);
       setVentas([]);
       setPagos([]);
+      setProyectosSummary([]);
+      setSelectedProyecto(null);
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDesarrollador]);
+
+  // Load data when project is selected
+  useEffect(() => {
+    if (selectedDesarrollador && selectedProyecto) {
+      loadProjectData(selectedDesarrollador, selectedProyecto);
+    } else if (selectedDesarrollador && selectedProyecto === null) {
+      loadDeveloperData(selectedDesarrollador);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProyecto, selectedDesarrollador]);
 
   const loadDesarrolladores = async () => {
     try {
@@ -92,17 +113,17 @@ export default function DeveloperDashboardPage() {
   const loadDeveloperData = async (desarrolladorId: number) => {
     setLoading(true);
     try {
-      const [proyectosData, inventarioData, ventasData, pagosData] = await Promise.all([
+      const [proyectosData, inventarioData] = await Promise.all([
         proyectosService.getProyectosByDesarrollador(desarrolladorId),
-        inventarioService.getInventarioByDesarrollador(desarrolladorId),
-        ventasService.getVentasContratosByDesarrollador(desarrolladorId),
-        ventasService.getPagosByDesarrollador(desarrolladorId)
+        inventarioService.getInventarioByDesarrollador(desarrolladorId)
       ]);
       
       setProyectos(proyectosData);
       setInventario(inventarioData);
-      setVentas(ventasData);
-      setPagos(pagosData);
+      
+      // Load corrected metrics and summary data
+      await loadCorrectedMetrics(desarrolladorId);
+      
     } catch (error) {
       console.error('Error loading developer data:', error);
     } finally {
@@ -110,18 +131,77 @@ export default function DeveloperDashboardPage() {
     }
   };
 
-  // Calculate metrics based on loaded data
-  const totalUnits = inventario.length;
-  const soldUnits = inventario.filter(unit => unit.estatus === 'Vendida').length;
-  const availableUnits = inventario.filter(unit => unit.estatus === 'Disponible').length;
+  const loadProjectData = async (desarrolladorId: number, proyectoId: number) => {
+    setLoading(true);
+    try {
+      const { dashboardData, ventasData, pagosData } = await desarrolladorService.getDeveloperDataByProject(desarrolladorId, proyectoId);
+      
+      setVentas(ventasData || []);
+      setPagos(pagosData || []);
+      
+      // Update metrics for selected project using dashboard data
+      const projectMetrics = dashboardData?.[0];
+      if (projectMetrics) {
+        console.log('Debug - project metrics:', projectMetrics);
+        setDashboardMetrics({
+          totalSalesValue: Number(projectMetrics.total_vendido) || 0,
+          totalPaid: Number(projectMetrics.total_cobrado) || 0,
+          totalPending: Number(projectMetrics.cuentas_por_cobrar) || 0
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error loading project data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const totalSalesValue = ventas.reduce((sum: number, venta: any) => sum + (venta.precio_venta || 0), 0);
-  const totalPaid = pagos
-    .filter((pago: any) => pago.estatus_pago === 'Pagado')
-    .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
-  const totalPending = pagos
-    .filter((pago: any) => pago.estatus_pago === 'Pendiente')
-    .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
+  const loadCorrectedMetrics = async (desarrolladorId: number) => {
+    try {
+      const [totalCobranza, proyectosSummaryData, ventasData, pagosData] = await Promise.all([
+        desarrolladorService.getTotalCobranza(desarrolladorId),
+        desarrolladorService.getProyectosSummary(desarrolladorId),
+        ventasService.getVentasContratosByDesarrollador(desarrolladorId),
+        ventasService.getPagosByDesarrollador(desarrolladorId)
+      ]);
+      
+      // Calculate total ventas from proyectosSummary (this works!)
+      const totalVentas = proyectosSummaryData?.reduce((sum, proyecto) => {
+        return sum + (Number(proyecto.total_vendido) || 0);
+      }, 0) || 0;
+      
+      console.log('Debug - calculated totalVentas from summary:', totalVentas);
+      console.log('Debug - totalCobranza:', totalCobranza);
+      
+      setDashboardMetrics({
+        totalSalesValue: totalVentas,
+        totalPaid: totalCobranza || 0,
+        totalPending: 0
+      });
+      
+      setProyectosSummary(proyectosSummaryData || []);
+      setVentas(ventasData || []);
+      setPagos(pagosData || []);
+      
+    } catch (error) {
+      console.error('Error loading corrected metrics:', error);
+    }
+  };
+
+  // Calculate metrics based on loaded data
+  const totalUnits = selectedProyecto 
+    ? inventario.filter(unit => unit.id_proyecto === selectedProyecto).length
+    : inventario.length;
+  const soldUnits = selectedProyecto 
+    ? inventario.filter(unit => unit.id_proyecto === selectedProyecto && unit.estatus === 'Vendida').length
+    : inventario.filter(unit => unit.estatus === 'Vendida').length;
+  const availableUnits = selectedProyecto 
+    ? inventario.filter(unit => unit.id_proyecto === selectedProyecto && unit.estatus === 'Disponible').length
+    : inventario.filter(unit => unit.estatus === 'Disponible').length;
+
+  // Use corrected metrics from state
+  const { totalSalesValue, totalPaid, totalPending } = dashboardMetrics;
 
   const pendingPayments = pagos.filter((pago: any) => pago.estatus_pago === 'Pendiente');
   const overduePayments = pendingPayments.filter((pago: any) => 
@@ -160,13 +240,13 @@ export default function DeveloperDashboardPage() {
   return (
     <AppLayout user={user}>
       <div className="space-y-6">
-        {/* Header with Developer Selection */}
+        {/* Header with Developer and Project Selection */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
             <p className="text-muted-foreground">
               {selectedDesarrolladorData 
-                ? `Resumen del desarrollador: ${selectedDesarrolladorData.nombre}`
+                ? `Resumen del desarrollador: ${selectedDesarrolladorData.nombre}${selectedProyecto ? ` - ${proyectos.find(p => p.id_proyecto === selectedProyecto)?.nombre || 'Proyecto'}` : ''}`
                 : 'Selecciona un desarrollador para ver datos'
               }
             </p>
@@ -175,7 +255,10 @@ export default function DeveloperDashboardPage() {
             <Filter className="h-4 w-4 text-muted-foreground" />
             <Select
               value={selectedDesarrollador?.toString() || ''}
-              onValueChange={(value) => setSelectedDesarrollador(value ? parseInt(value) : null)}
+              onValueChange={(value) => {
+                setSelectedDesarrollador(value ? parseInt(value) : null);
+                setSelectedProyecto(null); // Reset project when developer changes
+              }}
             >
               <SelectTrigger className="w-64 bg-white border-gray-300">
                 <SelectValue placeholder="Seleccionar desarrollador" />
@@ -192,6 +275,32 @@ export default function DeveloperDashboardPage() {
                 ))}
               </SelectContent>
             </Select>
+            
+            {/* Project Selection */}
+            {selectedDesarrollador && proyectos.length > 0 && (
+              <Select
+                value={selectedProyecto?.toString() || 'all'}
+                onValueChange={(value) => setSelectedProyecto(value === 'all' ? null : parseInt(value))}
+              >
+                <SelectTrigger className="w-64 bg-white border-gray-300">
+                  <SelectValue placeholder="Todos los proyectos" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border shadow-lg">
+                  <SelectItem value="all" className="hover:bg-gray-100 focus:bg-gray-100">
+                    Todos los proyectos
+                  </SelectItem>
+                  {proyectos.map((proyecto) => (
+                    <SelectItem
+                      key={proyecto.id_proyecto}
+                      value={proyecto.id_proyecto.toString()}
+                      className="hover:bg-gray-100 focus:bg-gray-100"
+                    >
+                      {proyecto.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 
@@ -241,9 +350,9 @@ export default function DeveloperDashboardPage() {
               <Home className="h-4 w-4" style={{color: '#10b981'}} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{color: '#10b981'}}>{formatNumber(soldUnits)}/{formatNumber(totalUnits)}</div>
+              <div className="text-2xl font-bold" style={{color: '#10b981'}}>{formatNumber(soldUnits)}</div>
               <p className="text-xs text-muted-foreground">
-                del inventario total
+                unidades vendidas
               </p>
             </CardContent>
           </Card>
@@ -271,7 +380,7 @@ export default function DeveloperDashboardPage() {
                 {formatCurrency(totalPaid)}
               </div>
               <p className="text-xs text-muted-foreground">
-                {calculateProgress(totalPaid, totalPaid + totalPending)}% cobrado
+                {totalPaid > 0 ? '100' : '0'}% cobrado hasta hoy
               </p>
             </CardContent>
           </Card>
@@ -418,43 +527,32 @@ export default function DeveloperDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {proyectos.length > 0 ? proyectos.map((proyecto) => {
-                // Calculate metrics for each project
-                const projectUnits = inventario.filter(unit => unit.id_proyecto === proyecto.id_proyecto);
-                const projectSoldUnits = projectUnits.filter(unit => unit.estatus === 'Vendida');
+              {/* Show project summaries only if no specific project selected */}
+              {!selectedProyecto && proyectosSummary.length > 0 ? proyectosSummary.map((projectSummary) => {
+                const proyecto = proyectos.find(p => p.id_proyecto === projectSummary.id_proyecto);
+                if (!proyecto) return null;
                 
-                // Get sales for this project
-                const projectSales = ventas.filter((venta: any) => 
-                  venta.inventario?.id_proyecto === proyecto.id_proyecto
-                );
-                const projectSoldValue = projectSales.reduce((sum: number, venta: any) => sum + (venta.precio_venta || 0), 0);
-                
-                // Get payments for this project
-                const projectPayments = pagos.filter((pago: any) => 
-                  pago.ventas_contratos?.inventario?.id_proyecto === proyecto.id_proyecto
-                );
-                const projectCollected = projectPayments
-                  .filter((pago: any) => pago.estatus_pago === 'Pagado')
-                  .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
-                const projectPending = projectPayments
-                  .filter((pago: any) => pago.estatus_pago === 'Pendiente')
-                  .reduce((sum: number, pago: any) => sum + (pago.monto || 0), 0);
-                
-                const salesProgress = projectUnits.length > 0 
-                  ? (projectSoldUnits.length / projectUnits.length) * 100 
-                  : 0;
+                // Use corrected data from dashboard view
+                const projectSoldValue = projectSummary.total_vendido || 0;
+                const projectCollected = projectSummary.total_cobrado || 0;
+                const projectPending = projectSummary.cuentas_por_cobrar || 0;
+                const salesProgress = projectSummary.progreso_ventas_pct || 0;
                 
                 return (
-                  <div key={proyecto.id_proyecto} className="p-4 border border-gray-200 rounded-lg">
+                  <div 
+                    key={projectSummary.id_proyecto} 
+                    className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 cursor-pointer transition-colors"
+                    onClick={() => setSelectedProyecto(projectSummary.id_proyecto)}
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h3 className="font-semibold text-foreground">{proyecto.nombre}</h3>
+                        <h3 className="font-semibold text-foreground">{projectSummary.proyecto}</h3>
                         <p className="text-sm text-soft">
-                          {projectUnits.length} unidades totales
+                          {projectSummary.total_unidades} unidades totales
                         </p>
                       </div>
                       <Badge variant="outline">
-                        {projectSoldUnits.length}/{projectUnits.length}
+                        {projectSummary.unidades_vendidas}/{projectSummary.total_unidades}
                       </Badge>
                     </div>
                     <div className="space-y-3">
@@ -485,7 +583,25 @@ export default function DeveloperDashboardPage() {
                     </div>
                   </div>
                 );
-              }) : (
+              }) : selectedProyecto ? (
+                <div className="col-span-2 text-center py-8">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <Building2 className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+                    <h3 className="font-semibold text-blue-900 mb-2">
+                      Proyecto: {proyectos.find(p => p.id_proyecto === selectedProyecto)?.nombre}
+                    </h3>
+                    <p className="text-blue-700 text-sm mb-4">
+                      Vista filtrada por proyecto seleccionado
+                    </p>
+                    <button 
+                      onClick={() => setSelectedProyecto(null)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+                    >
+                      Ver todos los proyectos
+                    </button>
+                  </div>
+                </div>
+              ) : (
                 <div className="col-span-2 text-center py-8 text-softer">
                   <Building2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>No hay proyectos para este desarrollador</p>

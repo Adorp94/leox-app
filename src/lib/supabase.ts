@@ -118,7 +118,8 @@ export const ventasService = {
       .from('ventas_contratos')
       .select(`
         *,
-        inventario(num_unidad, id_proyecto)
+        inventario(num_unidad, id_proyecto),
+        clientes(nombre_cliente)
       `)
       .order('fecha_venta', { ascending: false });
     
@@ -403,5 +404,124 @@ export const desarrolladorService = {
     
     if (error) throw error;
     return data as DesarrolladorRecord;
+  },
+
+  // NEW: Get dashboard summary using corrected logic
+  async getDashboardSummary(desarrolladorId: number, proyectoId?: number) {
+    let query = supabase
+      .from('vw_dashboard_remodela')
+      .select('*');
+    
+    if (proyectoId) {
+      query = query.eq('id_proyecto', proyectoId);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  },
+
+  // NEW: Get total cobranza with corrected calculation
+  async getTotalCobranza(desarrolladorId: number, proyectoId?: number, fechaCorte?: string) {
+    try {
+      const { data, error } = await supabase
+        .rpc('get_total_cobranza_remodela', {
+          fecha_corte: fechaCorte || new Date().toISOString().split('T')[0]
+        });
+      
+      if (error) {
+        console.error('Error fetching cobranza:', error);
+        throw error;
+      }
+      
+      console.log('Cobranza data received:', data); // Debug log
+      
+      // If specific project requested, filter the result
+      if (proyectoId && data) {
+        const projectData = await this.getDashboardSummary(desarrolladorId, proyectoId);
+        return projectData?.[0]?.total_cobrado || 0;
+      }
+      
+      return Number(data) || 0;
+    } catch (error) {
+      console.error('Error in getTotalCobranza:', error);
+      return 0;
+    }
+  },
+
+  // NEW: Get corrected sales value (excluding Rescindida)
+  async getTotalVentasCorregido(desarrolladorId: number, proyectoId?: number) {
+    try {
+      let query = supabase
+        .from('venta_cobranza_upload')
+        .select('monto')
+        .eq('categoria', 'Venta'); // Exclude Rescindida
+      
+      if (proyectoId) {
+        query = query.eq('proyecto_id', proyectoId);
+      }
+      
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching ventas:', error);
+        throw error;
+      }
+      
+      console.log('Ventas data received:', data); // Debug log
+      
+      // Sum manually since Supabase aggregate functions can be tricky
+      const total = data?.reduce((sum, item) => {
+        const amount = Number(item.monto) || 0;
+        return sum + amount;
+      }, 0) || 0;
+      
+      console.log('Calculated total ventas:', total); // Debug log
+      return total;
+    } catch (error) {
+      console.error('Error in getTotalVentasCorregido:', error);
+      return 0;
+    }
+  },
+
+  // NEW: Get project summaries with corrected values
+  async getProyectosSummary(desarrolladorId: number) {
+    try {
+      const { data, error } = await supabase
+        .from('vw_dashboard_remodela')
+        .select('*');
+      
+      if (error) {
+        console.error('Error fetching proyectos summary:', error);
+        throw error;
+      }
+      
+      console.log('Proyectos summary data:', data); // Debug log
+      return data;
+    } catch (error) {
+      console.error('Error in getProyectosSummary:', error);
+      return [];
+    }
+  },
+
+  // NEW: Get sales and payments filtered by project
+  async getDeveloperDataByProject(desarrolladorId: number, proyectoId?: number) {
+    try {
+      const [dashboardData, ventasData, pagosData] = await Promise.all([
+        this.getDashboardSummary(desarrolladorId, proyectoId),
+        proyectoId ? ventasService.getVentasContratosByProject(proyectoId) : ventasService.getVentasContratosByDesarrollador(desarrolladorId),
+        proyectoId ? ventasService.getPagosByProject(proyectoId) : ventasService.getPagosByDesarrollador(desarrolladorId)
+      ]);
+      
+      console.log('Dashboard data for project:', dashboardData); // Debug log
+      
+      return {
+        dashboardData,
+        ventasData,
+        pagosData
+      };
+    } catch (error) {
+      console.error('Error loading developer data by project:', error);
+      throw error;
+    }
   }
 };
