@@ -100,6 +100,10 @@ export default function DeveloperCobranzaPage() {
   // Active tab state
   const [activeTab, setActiveTab] = useState<'todos' | 'pagados' | 'pendientes'>('todos');
   
+  // Payment detail dialog
+  const [paymentDetailOpen, setPaymentDetailOpen] = useState(false);
+  const [selectedPaymentDetail, setSelectedPaymentDetail] = useState<any>(null);
+  
   // Payment dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
@@ -473,12 +477,12 @@ export default function DeveloperCobranzaPage() {
                         className="pl-10 bg-white border-slate-200 focus:border-blue-300 focus:ring-blue-100"
                       />
                       {searchTerm && (
-                        <button
+                        <span
                           onClick={() => setSearchTerm('')}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 hover:text-slate-600"
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
                         >
                           <X className="h-4 w-4" />
-                        </button>
+                        </span>
                       )}
                     </div>
                     
@@ -518,7 +522,7 @@ export default function DeveloperCobranzaPage() {
                         <Calendar
                           mode="range"
                           defaultMonth={dateRange.from || new Date()}
-                          selected={dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : dateRange.from ? { from: dateRange.from, to: dateRange.from } : undefined}
+                          selected={dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : dateRange.from ? { from: dateRange.from, to: undefined } : undefined}
                           onSelect={(range) => {
                             if (range) {
                               setDateRange({ from: range.from, to: range.to });
@@ -526,8 +530,17 @@ export default function DeveloperCobranzaPage() {
                               setDateRange({ from: undefined, to: undefined });
                             }
                           }}
-                          numberOfMonths={1}
-                          className="rounded-md border-0"
+                          numberOfMonths={2}
+                          className="rounded-lg p-3"
+                          classNames={{
+                            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                            day_today: "bg-accent text-accent-foreground font-semibold",
+                            day_range_start: "bg-primary text-primary-foreground rounded-l-md",
+                            day_range_end: "bg-primary text-primary-foreground rounded-r-md", 
+                            day_range_middle: "bg-primary/20 text-primary hover:bg-primary/30",
+                            day: "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                            cell: "relative p-0 text-center focus-within:relative focus-within:z-20"
+                          }}
                         />
                       </PopoverContent>
                     </Popover>
@@ -689,7 +702,15 @@ export default function DeveloperCobranzaPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                                    onClick={() => {
+                                      setSelectedPaymentDetail(pago);
+                                      setPaymentDetailOpen(true);
+                                    }}
+                                  >
                                     <Eye className="h-4 w-4" />
                                     <span className="sr-only">Ver detalles</span>
                                   </Button>
@@ -964,6 +985,164 @@ export default function DeveloperCobranzaPage() {
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Confirmar Pago
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Payment Detail Dialog */}
+        <Dialog open={paymentDetailOpen} onOpenChange={setPaymentDetailOpen}>
+          <DialogContent className="sm:max-w-[600px] bg-white border-0 shadow-2xl">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-xl font-semibold text-slate-800">Detalles del Pago</DialogTitle>
+              <DialogDescription className="text-slate-600">
+                {selectedPaymentDetail && (
+                  <>Información completa del pago #{selectedPaymentDetail.paymentNumber}</>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedPaymentDetail && (
+              <div className="space-y-6 py-4">
+                {/* Payment Overview */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Cliente</label>
+                      <p className="text-lg font-semibold text-slate-800">{selectedPaymentDetail.clientName}</p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Unidad</label>
+                      <p className="text-base text-slate-800">{selectedPaymentDetail.ventas_contratos?.inventario?.num_unidad}</p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Concepto</label>
+                      <Badge className="bg-slate-50 text-slate-600 border-slate-200">{selectedPaymentDetail.concepto_pago}</Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Monto</label>
+                      <p className="text-2xl font-bold text-emerald-600">{formatCurrency(selectedPaymentDetail.monto)}</p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Estado</label>
+                      <div className="mt-1">
+                        {(() => {
+                          const status = getPaymentStatus(selectedPaymentDetail);
+                          return (
+                            <>
+                              {status === 'paid' && (
+                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                                  <CheckCircle2 className="h-3 w-3 mr-1.5" />
+                                  Pagado
+                                </Badge>
+                              )}
+                              {status === 'overdue' && (
+                                <Badge className="bg-rose-100 text-rose-700 border-rose-200">
+                                  <AlertCircle className="h-3 w-3 mr-1.5" />
+                                  Vencido
+                                </Badge>
+                              )}
+                              {status === 'due-soon' && (
+                                <Badge className="bg-amber-100 text-amber-700 border-amber-200">
+                                  <Clock className="h-3 w-3 mr-1.5" />
+                                  Próximo
+                                </Badge>
+                              )}
+                              {status === 'upcoming' && (
+                                <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+                                  <CalendarIcon className="h-3 w-3 mr-1.5" />
+                                  Programado
+                                </Badge>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Pago #</label>
+                      <p className="text-base text-slate-800 font-mono">{selectedPaymentDetail.paymentNumber}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Payment Dates */}
+                <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-200">
+                  <div>
+                    <label className="text-sm font-medium text-slate-500">Fecha de Pago</label>
+                    <p className="text-base text-slate-800">{formatDate(new Date(selectedPaymentDetail.fecha_pago))}</p>
+                  </div>
+                  
+                  {selectedPaymentDetail.fecha_vencimiento && (
+                    <div>
+                      <label className="text-sm font-medium text-slate-500">Fecha de Vencimiento</label>
+                      <p className="text-base text-slate-800">{formatDate(new Date(selectedPaymentDetail.fecha_vencimiento))}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Additional Details */}
+                {(selectedPaymentDetail.metodo_pago || selectedPaymentDetail.referencia || selectedPaymentDetail.notas) && (
+                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                    <h4 className="font-medium text-slate-800">Detalles Adicionales</h4>
+                    
+                    {selectedPaymentDetail.metodo_pago && (
+                      <div>
+                        <label className="text-sm font-medium text-slate-500">Método de Pago</label>
+                        <p className="text-base text-slate-800">{selectedPaymentDetail.metodo_pago}</p>
+                      </div>
+                    )}
+                    
+                    {selectedPaymentDetail.referencia && (
+                      <div>
+                        <label className="text-sm font-medium text-slate-500">Referencia</label>
+                        <p className="text-base text-slate-800 font-mono">{selectedPaymentDetail.referencia}</p>
+                      </div>
+                    )}
+                    
+                    {selectedPaymentDetail.notas && (
+                      <div>
+                        <label className="text-sm font-medium text-slate-500">Notas</label>
+                        <p className="text-base text-slate-800">{selectedPaymentDetail.notas}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Timestamps */}
+                <div className="pt-4 border-t border-slate-200 text-xs text-slate-400 space-y-1">
+                  <p>Creado: {new Date(selectedPaymentDetail.created_at).toLocaleString('es-ES')}</p>
+                  <p>Actualizado: {new Date(selectedPaymentDetail.updated_at).toLocaleString('es-ES')}</p>
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setPaymentDetailOpen(false)}
+                className="bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Cerrar
+              </Button>
+              {selectedPaymentDetail && getPaymentStatus(selectedPaymentDetail) !== 'paid' && (
+                <Button 
+                  onClick={() => {
+                    setPaymentDetailOpen(false);
+                    handleMarkAsPaid(selectedPaymentDetail);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Banknote className="h-4 w-4 mr-2" />
+                  Marcar como Pagado
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -26,7 +26,9 @@ import {
   MousePointer,
   Activity,
   ArrowUpRight,
-  MoreHorizontal
+  MoreHorizontal,
+  BarChart3,
+  PieChart
 } from 'lucide-react';
 import { 
   formatCurrency, 
@@ -34,6 +36,16 @@ import {
   formatDate,
   calculateProgress
 } from '@/lib/format';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 import { 
   desarrolladorService,
   proyectosService,
@@ -66,6 +78,7 @@ export default function DeveloperDashboardPage() {
     totalPending: 0
   });
   const [proyectosSummary, setProyectosSummary] = useState<any[]>([]);
+  const [chartMode, setChartMode] = useState<'ventas' | 'cobranza'>('ventas');
 
   // Load initial data
   useEffect(() => {
@@ -208,14 +221,36 @@ export default function DeveloperDashboardPage() {
   const { totalSalesValue, totalPaid, totalPending } = dashboardMetrics;
 
   const pendingPayments = pagos.filter((pago: any) => pago.estatus_pago === 'Pendiente');
-  const overduePayments = pendingPayments.filter((pago: any) => 
-    pago.fecha_vencimiento && new Date(pago.fecha_vencimiento) < new Date()
+  const paidPayments = pagos.filter((pago: any) => pago.estatus_pago === 'Pagado');
+  
+  // Calculate totals using estatus_pago field
+  const totalPendingAmount = pendingPayments.reduce((sum: number, pago: any) => 
+    sum + (Number(pago.monto) || 0), 0
+  );
+  const totalPaidAmount = paidPayments.reduce((sum: number, pago: any) => 
+    sum + (Number(pago.monto) || 0), 0
   );
 
   // Recent sales (últimas ventas)
   const recentSales = ventas
     .sort((a: any, b: any) => new Date(b.fecha_venta).getTime() - new Date(a.fecha_venta).getTime())
     .slice(0, 5);
+
+  // Prepare chart data for individual project
+  const chartData = selectedProyecto ? [
+    {
+      name: 'Ventas',
+      amount: totalSalesValue
+    },
+    {
+      name: 'Cobrado',
+      amount: totalPaidAmount
+    },
+    {
+      name: 'Pendiente',
+      amount: totalPendingAmount
+    }
+  ] : [];
 
   // Upcoming payments (próximos vencimientos)
   const upcomingPayments = pendingPayments
@@ -400,23 +435,24 @@ export default function DeveloperDashboardPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="grid gap-2">
                 <p className="text-sm font-medium leading-none">Total Cobrado</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalPaidAmount)}</p>
               </div>
               <div className="grid gap-2">
                 <p className="text-sm font-medium leading-none">Pendiente de Cobro</p>
-                <p className="text-2xl font-bold text-yellow-600">{formatCurrency(totalPending)}</p>
+                <p className="text-2xl font-bold text-yellow-600">{formatCurrency(totalPendingAmount)}</p>
               </div>
               <div className="grid gap-2">
-                <p className="text-sm font-medium leading-none">Pagos Vencidos</p>
-                <p className="text-2xl font-bold text-red-600">{overduePayments.length}</p>
+                <p className="text-sm font-medium leading-none">Pagos Pendientes</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalPendingAmount)}</p>
+                <p className="text-xs text-muted-foreground">{pendingPayments.length} pagos pendientes</p>
               </div>
             </div>
-            {overduePayments.length > 0 && (
-              <div className="rounded-lg bg-red-50 p-3 border border-red-200">
+            {pendingPayments.length > 0 && (
+              <div className="rounded-lg bg-orange-50 p-3 border border-orange-200">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                  <span className="text-sm font-medium text-red-800">
-                    {overduePayments.length} pagos vencidos requieren atención
+                  <AlertCircle className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium text-orange-800">
+                    {pendingPayments.length} pagos pendientes por cobrar
                   </span>
                 </div>
               </div>
@@ -451,7 +487,7 @@ export default function DeveloperDashboardPage() {
                         {venta.clientes?.nombre_cliente || `Cliente ID: ${venta.id_cliente}`}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Unidad {venta.inventario?.num_unidad || 'N/A'}
+                        Unidad {venta.inventario?.num_unidad || 'N/A'} • {formatDate(new Date(venta.fecha_venta))}
                       </p>
                     </div>
                     <div className="ml-auto font-medium">
@@ -510,7 +546,8 @@ export default function DeveloperDashboardPage() {
           </Card>
         </div>
 
-        {/* Projects Overview */}
+        {/* Projects Overview - Only show when no specific project is selected */}
+        {!selectedProyecto && (
         <Card>
           <CardHeader>
             <CardTitle>Resumen por Proyecto</CardTitle>
@@ -608,6 +645,63 @@ export default function DeveloperDashboardPage() {
             </div>
           </CardContent>
         </Card>
+        )}
+
+        {/* Chart Section - Only for individual projects */}
+        {selectedProyecto && chartData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Análisis del Proyecto</CardTitle>
+                  <CardDescription>
+                    Estado financiero de {proyectos.find(p => p.id_proyecto === selectedProyecto)?.nombre}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+                    />
+                    <Tooltip 
+                      formatter={(value: number) => [formatCurrency(value), 'Monto']}
+                      labelStyle={{ color: '#000' }}
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="amount" 
+                      radius={[4, 4, 0, 0]}
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`}
+                          fill={
+                            entry.name === 'Ventas' ? '#3b82f6' : 
+                            entry.name === 'Cobrado' ? '#10b981' : '#f59e0b'
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         </>
         )}
       </div>
