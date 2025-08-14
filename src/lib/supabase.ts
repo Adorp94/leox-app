@@ -314,6 +314,28 @@ export const ventasService = {
     
     if (error) throw error;
     return data as VentaPagoRecord[];
+  },
+
+  // Update payment status
+  async updatePagoStatus(pagoId: number, estatusPago: 'Pagado' | 'Pendiente' | 'Vencido' | 'Parcial', metodoPago?: string, referencia?: string, notas?: string) {
+    const updateData: any = {
+      estatus_pago: estatusPago,
+      updated_at: new Date().toISOString()
+    };
+
+    if (metodoPago) updateData.metodo_pago = metodoPago;
+    if (referencia) updateData.referencia = referencia;
+    if (notas) updateData.notas = notas;
+
+    const { data, error } = await supabase
+      .from('venta_pagos')
+      .update(updateData)
+      .eq('id_pago', pagoId)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data as VentaPagoRecord;
   }
 };
 

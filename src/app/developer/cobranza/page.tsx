@@ -34,17 +34,39 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
 import { 
   Building,
   DollarSign,
   Eye,
-  CheckCircle,
+  CheckCircle2,
   AlertCircle,
   Clock,
   Check,
   ChevronsUpDown,
   TrendingUp,
-  CreditCard
+  CreditCard,
+  Receipt,
+  CalendarIcon,
+  User,
+  Hash,
+  FileText,
+  Banknote,
+  Search,
+  Filter,
+  X
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { 
@@ -68,9 +90,24 @@ export default function DeveloperCobranzaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Client filter for cobranza
+  // Filters for cobranza
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [clientFilterOpen, setClientFilterOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [dateRange, setDateRange] = useState<{from: Date | undefined, to: Date | undefined}>({from: undefined, to: undefined});
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  
+  // Active tab state
+  const [activeTab, setActiveTab] = useState<'todos' | 'pagados' | 'pendientes'>('todos');
+  
+  // Payment dialog state
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [paymentForm, setPaymentForm] = useState({
+    metodoPago: '',
+    referencia: '',
+    notas: ''
+  });
 
   // Load projects on mount
   useEffect(() => {
@@ -123,13 +160,45 @@ export default function DeveloperCobranzaPage() {
 
     fetchProjectData();
   }, [selectedProject]);
+  
+  // Handle payment marking
+  const handleMarkAsPaid = async (pago: any) => {
+    setSelectedPayment(pago);
+    setPaymentDialogOpen(true);
+  };
+  
+  const handleSubmitPayment = async () => {
+    if (!selectedPayment) return;
+    
+    try {
+      await ventasService.updatePagoStatus(
+        selectedPayment.id_pago,
+        'Pagado',
+        paymentForm.metodoPago || undefined,
+        paymentForm.referencia || undefined,
+        paymentForm.notas || undefined
+      );
+      
+      // Refresh data
+      const pagosData = await ventasService.getPagosByProject(selectedProject!);
+      setPagos(pagosData);
+      
+      // Close dialog and reset form
+      setPaymentDialogOpen(false);
+      setSelectedPayment(null);
+      setPaymentForm({ metodoPago: '', referencia: '', notas: '' });
+    } catch (err) {
+      console.error('Error updating payment status:', err);
+      // You could add a toast notification here
+    }
+  };
 
-  // Calculate KPIs
-  const totalCollected = pagos
+  // Calculate original KPIs (for reference, but we'll use filtered ones)
+  const originalTotalCollected = pagos
     .filter((p: any) => p.estatus_pago === 'Pagado')
     .reduce((sum: number, p: any) => sum + p.monto, 0);
   
-  const totalPending = pagos
+  const originalTotalPending = pagos
     .filter((p: any) => p.estatus_pago !== 'Pagado')
     .reduce((sum: number, p: any) => sum + p.monto, 0);
 
@@ -179,14 +248,62 @@ export default function DeveloperCobranzaPage() {
   // Get unique clients for filter
   const uniqueClients = Array.from(new Set(processedPagos.map((p: any) => p.clientName))).sort();
   
-  // Filter pagos based on selected client
-  const filteredPagos = selectedClient 
-    ? processedPagos.filter((p: any) => p.clientName === selectedClient)
-    : processedPagos;
+  // Apply all filters
+  const filteredPagos = processedPagos.filter((pago: any) => {
+    // Client filter
+    if (selectedClient && pago.clientName !== selectedClient) {
+      return false;
+    }
+    
+    // Search filter (search in client name, unit, concept, amount)
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const searchFields = [
+        pago.clientName,
+        pago.ventas_contratos?.inventario?.num_unidad,
+        pago.concepto_pago,
+        pago.monto?.toString()
+      ].filter(Boolean).map(field => field.toString().toLowerCase());
+      
+      if (!searchFields.some(field => field.includes(searchLower))) {
+        return false;
+      }
+    }
+    
+    // Date range filter
+    if (dateRange.from || dateRange.to) {
+      const pagoDate = new Date(pago.fecha_pago);
+      if (dateRange.from && pagoDate < dateRange.from) {
+        return false;
+      }
+      if (dateRange.to && pagoDate > dateRange.to) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
+  // Calculate KPIs based on current filters and active tab
+  const getFilteredPagosForTab = (tab: string) => {
+    switch (tab) {
+      case 'pagados':
+        return filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
+      case 'pendientes':
+        return filteredPagos.filter((p: any) => getPaymentStatus(p) !== 'paid');
+      default:
+        return filteredPagos;
+    }
+  };
+  
+  const currentTabPagos = getFilteredPagosForTab(activeTab);
   const paidPagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
   const overduePagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'overdue');
   const upcomingPagos = filteredPagos.filter((p: any) => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
+  
+  // Recalculate totals based on current filters
+  const filteredTotalCollected = paidPagos.reduce((sum: number, p: any) => sum + p.monto, 0);
+  const filteredTotalPending = upcomingPagos.concat(overduePagos).reduce((sum: number, p: any) => sum + p.monto, 0);
 
   if (error) {
     return (
@@ -208,71 +325,19 @@ export default function DeveloperCobranzaPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
               Cobranza
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-slate-500 mt-1">
               Control y seguimiento de pagos por proyecto
             </p>
-          </div>
-          
-          {/* Client Filter */}
-          <div className="w-64">
-            <Popover open={clientFilterOpen} onOpenChange={setClientFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={clientFilterOpen}
-                  className="w-full justify-between"
-                >
-                  {selectedClient || "Filtrar por cliente..."}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64 p-0">
-                <Command>
-                  <CommandInput placeholder="Buscar cliente..." />
-                  <CommandList>
-                    <CommandEmpty>No se encontró cliente.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        onSelect={() => {
-                          setSelectedClient('');
-                          setClientFilterOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={`mr-2 h-4 w-4 ${selectedClient === '' ? "opacity-100" : "opacity-0"}`}
-                        />
-                        Todos los clientes
-                      </CommandItem>
-                      {uniqueClients.map((client: any) => (
-                        <CommandItem
-                          key={client}
-                          onSelect={() => {
-                            setSelectedClient(client === selectedClient ? '' : client);
-                            setClientFilterOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={`mr-2 h-4 w-4 ${selectedClient === client ? "opacity-100" : "opacity-0"}`}
-                          />
-                          {client}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
           </div>
         </div>
 
         {/* Project Selector */}
-        <div className="flex items-center gap-3 mb-6 p-4 bg-card rounded-lg border">
-          <Building className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">
+        <div className="flex items-center gap-3 mb-6 p-4 bg-slate-50/50 rounded-xl border border-slate-200/50">
+          <Building className="h-4 w-4 text-slate-500" />
+          <span className="text-sm font-medium text-slate-700">
             Proyecto:
           </span>
           <Select value={selectedProject?.toString() || ''} onValueChange={(value) => setSelectedProject(parseInt(value))}>
@@ -326,41 +391,59 @@ export default function DeveloperCobranzaPage() {
           <>
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Cobrado</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              <Card className="border-0 shadow-sm bg-emerald-50/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-emerald-100 p-3">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-medium text-slate-600">Total Cobrado</CardTitle>
+                      <div className="text-2xl font-semibold text-emerald-700">{formatCurrency(filteredTotalCollected)}</div>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{formatCurrency(totalCollected)}</div>
-                  <p className="text-xs text-muted-foreground">
+                <CardContent className="pt-0">
+                  <p className="text-sm text-slate-500">
                     {paidPagos.length} pagos completados
                   </p>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pendiente</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
+              <Card className="border-0 shadow-sm bg-amber-50/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-amber-100 p-3">
+                      <Clock className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-medium text-slate-600">Pendiente</CardTitle>
+                      <div className="text-2xl font-semibold text-amber-700">{formatCurrency(filteredTotalPending)}</div>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-yellow-600">{formatCurrency(totalPending)}</div>
-                  <p className="text-xs text-muted-foreground">
+                <CardContent className="pt-0">
+                  <p className="text-sm text-slate-500">
                     {upcomingPagos.length + overduePagos.length} pagos pendientes
                   </p>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Vencidos</CardTitle>
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
+              <Card className="border-0 shadow-sm bg-rose-50/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-rose-100 p-3">
+                      <AlertCircle className="h-5 w-5 text-rose-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm font-medium text-slate-600">Vencidos</CardTitle>
+                      <div className="text-2xl font-semibold text-rose-700">{overduePagos.length}</div>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">{overduePagos.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    pagos vencidos
+                <CardContent className="pt-0">
+                  <p className="text-sm text-slate-500">
+                    {overduePagos.length > 0 ? 'requieren atención' : 'todos al día'}
                   </p>
                 </CardContent>
               </Card>
@@ -368,23 +451,171 @@ export default function DeveloperCobranzaPage() {
 
 
             {/* Cobranza Tabs */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
-                    <CardTitle>Registro de Cobranza</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <CardTitle className="text-xl text-slate-800">Registro de Cobranza</CardTitle>
+                    <p className="text-sm text-slate-500 mt-1">
                       {filteredPagos.length} registros de pago
                     </p>
+                  </div>
+                  
+                  {/* Filters */}
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    {/* Search Bar */}
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Buscar pagos..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 bg-white border-slate-200 focus:border-blue-300 focus:ring-blue-100"
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Date Range Filter */}
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full sm:w-auto justify-start bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dateRange.from ? (
+                            dateRange.to ? (
+                              <>
+                                {formatDate(dateRange.from)} - {formatDate(dateRange.to)}
+                              </>
+                            ) : (
+                              formatDate(dateRange.from)
+                            )
+                          ) : (
+                            <span>Filtrar por fecha</span>
+                          )}
+                          {(dateRange.from || dateRange.to) && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDateRange({from: undefined, to: undefined});
+                              }}
+                              className="ml-2 hover:bg-slate-200 rounded p-0.5 cursor-pointer"
+                            >
+                              <X className="h-3 w-3" />
+                            </span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-white border-slate-200 shadow-lg" align="start">
+                        <Calendar
+                          mode="range"
+                          defaultMonth={dateRange.from || new Date()}
+                          selected={dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : dateRange.from ? { from: dateRange.from, to: dateRange.from } : undefined}
+                          onSelect={(range) => {
+                            if (range) {
+                              setDateRange({ from: range.from, to: range.to });
+                            } else {
+                              setDateRange({ from: undefined, to: undefined });
+                            }
+                          }}
+                          numberOfMonths={1}
+                          className="rounded-md border-0"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    
+                    {/* Client Filter */}
+                    <Popover open={clientFilterOpen} onOpenChange={setClientFilterOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={clientFilterOpen}
+                          className="w-full sm:w-auto justify-between bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          <div className="flex items-center justify-between w-full">
+                            <span className="truncate">{selectedClient || "Cliente"}</span>
+                            <div className="flex items-center gap-1 ml-2">
+                              {selectedClient && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedClient('');
+                                  }}
+                                  className="hover:bg-slate-200 rounded p-0.5 cursor-pointer"
+                                >
+                                  <X className="h-3 w-3" />
+                                </span>
+                              )}
+                              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                            </div>
+                          </div>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-0 bg-white border-slate-200 shadow-lg">
+                        <Command className="bg-white">
+                          <CommandInput placeholder="Buscar cliente..." className="border-0 focus:ring-0" />
+                          <CommandList className="bg-white">
+                            <CommandEmpty className="text-slate-500">No se encontró cliente.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                onSelect={() => {
+                                  setSelectedClient('');
+                                  setClientFilterOpen(false);
+                                }}
+                                className="hover:bg-slate-50 cursor-pointer"
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${selectedClient === '' ? "opacity-100" : "opacity-0"}`}
+                                />
+                                Todos los clientes
+                              </CommandItem>
+                              {uniqueClients.map((client: any) => (
+                                <CommandItem
+                                  key={client}
+                                  onSelect={() => {
+                                    setSelectedClient(client === selectedClient ? '' : client);
+                                    setClientFilterOpen(false);
+                                  }}
+                                  className="hover:bg-slate-50 cursor-pointer"
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 ${selectedClient === client ? "opacity-100" : "opacity-0"}`}
+                                  />
+                                  {client}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    
+                    {/* Active Filters Indicator */}
+                    {(selectedClient || searchTerm || dateRange.from || dateRange.to) && (
+                      <div className="flex items-center gap-1 text-sm text-slate-500">
+                        <Filter className="h-4 w-4" />
+                        <span>{filteredPagos.length} de {processedPagos.length}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="todos" className="space-y-4">
-                  <TabsList className="grid w-full max-w-lg grid-cols-3">
-                    <TabsTrigger value="todos">Todos ({filteredPagos.length})</TabsTrigger>
-                    <TabsTrigger value="pagados">Pagados ({paidPagos.length})</TabsTrigger>
-                    <TabsTrigger value="pendientes">Pendientes ({upcomingPagos.length + overduePagos.length})</TabsTrigger>
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'todos' | 'pagados' | 'pendientes')} className="space-y-6">
+                  <TabsList className="grid w-full max-w-md grid-cols-3 bg-slate-100 p-1">
+                    <TabsTrigger value="todos" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Todos ({filteredPagos.length})</TabsTrigger>
+                    <TabsTrigger value="pagados" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pagados ({paidPagos.length})</TabsTrigger>
+                    <TabsTrigger value="pendientes" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pendientes ({upcomingPagos.length + overduePagos.length})</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="todos">
@@ -420,7 +651,7 @@ export default function DeveloperCobranzaPage() {
                                 {pago.ventas_contratos?.inventario?.num_unidad}
                               </TableCell>
                               <TableCell>
-                                <Badge variant="outline">
+                                <Badge className="bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-50 font-medium">
                                   {pago.concepto_pago}
                                 </Badge>
                               </TableCell>
@@ -431,25 +662,44 @@ export default function DeveloperCobranzaPage() {
                                 {formatDate(new Date(pago.fecha_pago))}
                               </TableCell>
                               <TableCell>
-                                <div className="flex items-center gap-1">
-                                  {status === 'paid' && <CheckCircle className="h-3 w-3 text-green-600" />}
-                                  {status === 'overdue' && <AlertCircle className="h-3 w-3 text-red-600" />}
-                                  {status === 'due-soon' && <Clock className="h-3 w-3 text-yellow-600" />}
-                                  {status === 'upcoming' && <Clock className="h-3 w-3 text-muted-foreground" />}
-                                  <span className="text-xs">
-                                    {status === 'paid' ? 'Pagado' : 
-                                     status === 'overdue' ? 'Vencido' :
-                                     status === 'due-soon' ? 'Próximo' : 'Programado'}
-                                  </span>
-                                </div>
+                                {status === 'paid' && (
+                                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-medium">
+                                    <CheckCircle2 className="h-3 w-3 mr-1.5" />
+                                    Pagado
+                                  </Badge>
+                                )}
+                                {status === 'overdue' && (
+                                  <Badge className="bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-100 font-medium">
+                                    <AlertCircle className="h-3 w-3 mr-1.5" />
+                                    Vencido
+                                  </Badge>
+                                )}
+                                {status === 'due-soon' && (
+                                  <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 font-medium">
+                                    <Clock className="h-3 w-3 mr-1.5" />
+                                    Próximo
+                                  </Badge>
+                                )}
+                                {status === 'upcoming' && (
+                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-100 font-medium">
+                                    <CalendarIcon className="h-3 w-3 mr-1.5" />
+                                    Programado
+                                  </Badge>
+                                )}
                               </TableCell>
                               <TableCell>
-                                <div className="flex gap-1">
-                                  <Button variant="ghost" size="sm">
+                                <div className="flex items-center gap-2">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100">
                                     <Eye className="h-4 w-4" />
+                                    <span className="sr-only">Ver detalles</span>
                                   </Button>
                                   {status !== 'paid' && (
-                                    <Button variant="outline" size="sm">
+                                    <Button 
+                                      size="sm"
+                                      onClick={() => handleMarkAsPaid(pago)}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 font-medium shadow-sm"
+                                    >
+                                      <Banknote className="h-3 w-3 mr-1.5" />
                                       Pagar
                                     </Button>
                                   )}
@@ -500,7 +750,7 @@ export default function DeveloperCobranzaPage() {
                               {pago.ventas_contratos?.inventario?.num_unidad}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-medium">
                                 {pago.concepto_pago}
                               </Badge>
                             </TableCell>
@@ -551,7 +801,7 @@ export default function DeveloperCobranzaPage() {
                                   {pago.ventas_contratos?.inventario?.num_unidad}
                                 </TableCell>
                                 <TableCell>
-                                  <Badge variant="outline">
+                                  <Badge className="bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-50 font-medium">
                                     {pago.concepto_pago}
                                   </Badge>
                                 </TableCell>
@@ -563,23 +813,28 @@ export default function DeveloperCobranzaPage() {
                                 </TableCell>
                                 <TableCell>
                                   {status === 'overdue' && (
-                                    <Badge variant="destructive">
+                                    <Badge className="bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-100 font-medium">
                                       Vencido
                                     </Badge>
                                   )}
                                   {status === 'due-soon' && (
-                                    <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-100">
+                                    <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 font-medium">
                                       Próximo
                                     </Badge>
                                   )}
                                   {status === 'upcoming' && (
-                                    <Badge variant="outline">
+                                    <Badge className="bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-100 font-medium">
                                       Programado
                                     </Badge>
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <Button variant="outline" size="sm">
+                                  <Button 
+                                    size="sm"
+                                    onClick={() => handleMarkAsPaid(pago)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 font-medium shadow-sm"
+                                  >
+                                    <Banknote className="h-3 w-3 mr-1.5" />
                                     Pagar
                                   </Button>
                                 </TableCell>
@@ -602,6 +857,116 @@ export default function DeveloperCobranzaPage() {
             </p>
           </div>
         )}
+        
+        {/* Payment Dialog */}
+        <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <DialogContent className="sm:max-w-[500px] bg-white border-0 shadow-2xl">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-xl font-semibold text-slate-800">Confirmar Pago</DialogTitle>
+              <DialogDescription className="text-slate-600 text-base">
+                {selectedPayment && (
+                  <>Registrar pago de <span className="font-semibold text-slate-800">{formatCurrency(selectedPayment.monto)}</span></>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-6 py-2">
+              {/* Payment Details Summary */}
+              {selectedPayment && (
+                <div className="rounded-xl bg-slate-50/70 border border-slate-200/50 p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="rounded-lg bg-blue-100 p-2.5">
+                        <Receipt className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-semibold text-slate-800">{formatCurrency(selectedPayment.monto)}</span>
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50">{selectedPayment.concepto_pago}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <User className="h-3.5 w-3.5 text-slate-400" />
+                        <span>{selectedPayment.clientName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Building className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Unidad {selectedPayment.ventas_contratos?.inventario?.num_unidad}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Payment Form */}
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="metodoPago" className="text-sm font-medium text-slate-700">
+                    Método de Pago
+                  </Label>
+                  <Select value={paymentForm.metodoPago} onValueChange={(value) => setPaymentForm(prev => ({ ...prev, metodoPago: value }))}>
+                    <SelectTrigger className="h-11 border-slate-200 focus:border-blue-300 focus:ring-blue-100">
+                      <SelectValue placeholder="Selecciona método..." />
+                    </SelectTrigger>
+                    <SelectContent className="border-slate-200 bg-white">
+                      <SelectItem value="Efectivo" className="focus:bg-slate-50">Efectivo</SelectItem>
+                      <SelectItem value="Transferencia" className="focus:bg-slate-50">Transferencia</SelectItem>
+                      <SelectItem value="Tarjeta" className="focus:bg-slate-50">Tarjeta</SelectItem>
+                      <SelectItem value="Cheque" className="focus:bg-slate-50">Cheque</SelectItem>
+                      <SelectItem value="Otro" className="focus:bg-slate-50">Otro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="referencia" className="text-sm font-medium text-slate-700">
+                    Referencia / Comprobante
+                  </Label>
+                  <Input
+                    id="referencia"
+                    value={paymentForm.referencia}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, referencia: e.target.value }))}
+                    placeholder="Número de referencia..."
+                    className="h-11 border-slate-200 focus:border-blue-300 focus:ring-blue-100"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="notas" className="text-sm font-medium text-slate-700">
+                    Notas Adicionales
+                  </Label>
+                  <Textarea
+                    id="notas"
+                    value={paymentForm.notas}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, notas: e.target.value }))}
+                    placeholder="Observaciones del pago..."
+                    rows={3}
+                    className="border-slate-200 focus:border-blue-300 focus:ring-blue-100 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-3 pt-6">
+              <Button 
+                variant="outline" 
+                onClick={() => setPaymentDialogOpen(false)}
+                className="flex-1 sm:flex-none h-11 border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleSubmitPayment}
+                className="flex-1 sm:flex-none h-11 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Confirmar Pago
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

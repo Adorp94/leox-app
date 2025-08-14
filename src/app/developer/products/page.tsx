@@ -113,7 +113,7 @@ export default function DeveloperProductsPage() {
   const totalUnits = inventario.length;
   const soldUnits = inventario.filter(unit => {
     const venta = ventas.find((v: any) => v.inventario?.num_unidad === unit.num_unidad);
-    return venta && (venta.estatus === 'Vendida' || venta.estatus === 'Liquidado');
+    return venta && ((venta as any).estatus === 'Vendida' || (venta as any).estatus === 'Liquidado');
   }).length;
   const availableUnits = totalUnits - soldUnits;
   const salesPercentage = totalUnits > 0 ? Math.round((soldUnits / totalUnits) * 100) : 0;
@@ -294,8 +294,8 @@ export default function DeveloperProductsPage() {
                       .map((unit) => {
                         // Find if this unit has been sold
                         const venta = ventas.find((v: any) => v.inventario?.num_unidad === unit.num_unidad);
-                        const isSold = venta && (venta.estatus === 'Vendida' || venta.estatus === 'Liquidado');
-                        const salePrice = venta?.precio_venta;
+                        const isSold = venta && ((venta as any).estatus === 'Vendida' || (venta as any).estatus === 'Liquidado');
+                        const salePrice = (venta as any)?.precio_venta;
                         
                         return (
                           <TableRow key={unit.id_inventario}>
