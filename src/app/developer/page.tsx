@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
   Select,
   SelectContent,
@@ -79,6 +80,7 @@ export default function DeveloperDashboardPage() {
   });
   const [proyectosSummary, setProyectosSummary] = useState<any[]>([]);
   const [chartMode, setChartMode] = useState<'ventas' | 'cobranza'>('ventas');
+  const [monthlyChartData, setMonthlyChartData] = useState<any[]>([]);
 
   // Load initial data
   useEffect(() => {
@@ -106,8 +108,12 @@ export default function DeveloperDashboardPage() {
   useEffect(() => {
     if (selectedDesarrollador && selectedProyecto) {
       loadProjectData(selectedDesarrollador, selectedProyecto);
+      // Always try to load monthly chart data regardless of other data
+      loadMonthlyChartData(selectedProyecto);
     } else if (selectedDesarrollador && selectedProyecto === null) {
       loadDeveloperData(selectedDesarrollador);
+      // Clear monthly data when no project selected
+      setMonthlyChartData([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProyecto, selectedDesarrollador]);
@@ -203,6 +209,18 @@ export default function DeveloperDashboardPage() {
       
     } catch (error) {
       console.error('Error loading corrected metrics:', error);
+    }
+  };
+
+  const loadMonthlyChartData = async (proyectoId: number) => {
+    try {
+      console.log('Loading monthly chart data for project:', proyectoId);
+      const data = await desarrolladorService.getMonthlyChartData(proyectoId);
+      console.log('Monthly chart data loaded:', data);
+      setMonthlyChartData(data);
+    } catch (error) {
+      console.error('Error loading monthly chart data:', error);
+      setMonthlyChartData([]);
     }
   };
 
@@ -647,58 +665,100 @@ export default function DeveloperDashboardPage() {
         </Card>
         )}
 
-        {/* Chart Section - Only for individual projects */}
-        {selectedProyecto && chartData.length > 0 && (
+        {/* Chart Section - Always show when project is selected */}
+        {selectedProyecto && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Análisis del Proyecto</CardTitle>
                   <CardDescription>
-                    Estado financiero de {proyectos.find(p => p.id_proyecto === selectedProyecto)?.nombre}
+                    Evolución mensual del proyecto - {proyectos.find(p => p.id_proyecto === selectedProyecto)?.nombre}
                   </CardDescription>
                 </div>
+                <Tabs value={chartMode} onValueChange={(value) => setChartMode(value as 'ventas' | 'cobranza')}>
+                  <TabsList>
+                    <TabsTrigger value="ventas" className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Ventas
+                    </TabsTrigger>
+                    <TabsTrigger value="cobranza" className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Cobranza
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
             </CardHeader>
             <CardContent>
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 12 }}
-                      tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => [formatCurrency(value), 'Monto']}
-                      labelStyle={{ color: '#000' }}
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Bar 
-                      dataKey="amount" 
-                      radius={[4, 4, 0, 0]}
-                    >
-                      {chartData.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`}
-                          fill={
-                            entry.name === 'Ventas' ? '#3b82f6' : 
-                            entry.name === 'Cobrado' ? '#10b981' : '#f59e0b'
-                          }
+                    {monthlyChartData.length > 0 ? (
+                      <BarChart data={monthlyChartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fontSize: 11 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={60}
                         />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                        <YAxis 
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`}
+                        />
+                        <Tooltip 
+                          formatter={(value: number) => [formatCurrency(value), chartMode === 'ventas' ? 'Ventas' : 'Cobranza']}
+                          labelStyle={{ color: '#000' }}
+                          contentStyle={{ 
+                            backgroundColor: '#fff', 
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Bar 
+                          dataKey={chartMode}
+                          radius={[4, 4, 0, 0]}
+                          fill={chartMode === 'ventas' ? '#3b82f6' : '#10b981'}
+                        />
+                      </BarChart>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-center">
+                        <BarChart3 className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">No hay datos mensuales disponibles</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Este proyecto no tiene datos en la tabla venta_cobranza_upload
+                        </p>
+                        {chartData.length > 0 && (
+                          <div className="w-full max-w-md">
+                            <h4 className="text-sm font-medium mb-2">Resumen del proyecto:</h4>
+                            <div className="h-[200px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData}>
+                                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`} />
+                                  <Tooltip formatter={(value: number) => [formatCurrency(value), 'Monto']} />
+                                  <Bar dataKey="amount" radius={[2, 2, 0, 0]}>
+                                    {chartData.map((entry, index) => (
+                                      <Cell 
+                                        key={`cell-${index}`}
+                                        fill={
+                                          entry.name === 'Ventas' ? '#3b82f6' : 
+                                          entry.name === 'Cobrado' ? '#10b981' : '#f59e0b'
+                                        }
+                                      />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </ResponsiveContainer>
+                </div>
             </CardContent>
           </Card>
         )}

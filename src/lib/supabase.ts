@@ -592,5 +592,150 @@ export const desarrolladorService = {
       console.error('Error loading developer data by project:', error);
       throw error;
     }
+  },
+
+  // NEW: Get monthly ventas and cobranza data for charts
+  async getMonthlyChartData(proyectoId: number) {
+    try {
+      console.log('🔍 Starting getMonthlyChartData for project:', proyectoId);
+      
+      // Get monthly ventas data
+      const { data: ventasData, error: ventasError } = await supabase
+        .from('ventas_contratos')
+        .select(`
+          fecha_venta,
+          precio_venta,
+          inventario!inner(id_proyecto)
+        `)
+        .eq('inventario.id_proyecto', proyectoId)
+        .order('fecha_venta', { ascending: true });
+      
+      if (ventasError) {
+        console.error('❌ Error fetching ventas data:', ventasError);
+        throw ventasError;
+      }
+
+      // Get monthly cobranza data (only paid payments)
+      const { data: cobranzaData, error: cobranzaError } = await supabase
+        .from('venta_pagos')
+        .select(`
+          fecha_pago,
+          monto,
+          estatus_pago,
+          ventas_contratos!inner(
+            inventario!inner(id_proyecto)
+          )
+        `)
+        .eq('ventas_contratos.inventario.id_proyecto', proyectoId)
+        .eq('estatus_pago', 'Pagado')
+        .order('fecha_pago', { ascending: true });
+      
+      if (cobranzaError) {
+        console.error('❌ Error fetching cobranza data:', cobranzaError);
+        throw cobranzaError;
+      }
+
+      console.log('📊 Ventas data received:', ventasData?.length, 'records');
+      console.log('📊 Cobranza data received:', cobranzaData?.length, 'records');
+
+      if ((!ventasData || ventasData.length === 0) && (!cobranzaData || cobranzaData.length === 0)) {
+        console.log('⚠️ No data found for project', proyectoId);
+        return [];
+      }
+
+      // Process the data to create monthly timeline
+      const monthlyData = new Map();
+      
+      // Process ventas data
+      ventasData?.forEach((row, index) => {
+        const date = new Date(row.fecha_venta);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        
+        if (!monthlyData.has(monthKey)) {
+          monthlyData.set(monthKey, {
+            month: monthKey,
+            ventas: 0,
+            cobranza: 0,
+            year: year,
+            monthNum: month
+          });
+        }
+        
+        const entry = monthlyData.get(monthKey);
+        const amount = Number(row.precio_venta) || 0;
+        entry.ventas += amount;
+
+        // Log first few entries for debugging
+        if (index < 3) {
+          console.log(`📈 Venta ${index}:`, {
+            fecha: row.fecha_venta,
+            monto: row.precio_venta,
+            monthKey,
+            amount
+          });
+        }
+      });
+
+      // Process cobranza data
+      cobranzaData?.forEach((row, index) => {
+        const date = new Date(row.fecha_pago);
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        
+        if (!monthlyData.has(monthKey)) {
+          monthlyData.set(monthKey, {
+            month: monthKey,
+            ventas: 0,
+            cobranza: 0,
+            year: year,
+            monthNum: month
+          });
+        }
+        
+        const entry = monthlyData.get(monthKey);
+        const amount = Number(row.monto) || 0;
+        entry.cobranza += amount;
+
+        // Log first few entries for debugging
+        if (index < 3) {
+          console.log(`💰 Cobranza ${index}:`, {
+            fecha: row.fecha_pago,
+            monto: row.monto,
+            monthKey,
+            amount
+          });
+        }
+      });
+      
+      console.log('📅 Unique months found:', monthlyData.size);
+      
+      // Convert to array and sort by date
+      const sortedData = Array.from(monthlyData.values())
+        .sort((a, b) => {
+          if (a.year !== b.year) {
+            return a.year - b.year;
+          }
+          return a.monthNum - b.monthNum;
+        })
+        .map(item => ({
+          month: new Intl.DateTimeFormat('es-ES', { 
+            month: 'short', 
+            year: '2-digit' 
+          }).format(new Date(item.year, item.monthNum - 1)),
+          ventas: item.ventas,
+          cobranza: item.cobranza
+        }));
+      
+      console.log('✅ Final processed data:', sortedData.length, 'months');
+      console.log('🎯 Sample processed data:', sortedData.slice(0, 3));
+      return sortedData;
+      
+    } catch (error) {
+      console.error('💥 Error in getMonthlyChartData:', error);
+      return [];
+    }
   }
 };
