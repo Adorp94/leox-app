@@ -66,7 +66,8 @@ import {
   Banknote,
   Search,
   Filter,
-  X
+  X,
+  ArrowUpRight
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { 
@@ -169,6 +170,9 @@ export default function DeveloperCobranzaPage() {
         localStorage.setItem('selectedProjectCobranza', selectedProject.toString());
         
         const pagosData = await ventasService.getPagosByProject(selectedProject);
+        console.log(`🔍 Total pagos loaded: ${pagosData.length}`);
+        const albertoPayments = pagosData.filter(p => p.ventas_contratos?.clientes?.nombre_cliente === 'Alberto del Río Ruiz');
+        console.log(`🔍 Alberto payments found: ${albertoPayments.length}`, albertoPayments);
         setPagos(pagosData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error loading data');
@@ -213,14 +217,18 @@ export default function DeveloperCobranzaPage() {
     }
   };
 
-  // Calculate original KPIs (for reference, but we'll use filtered ones)
-  const originalTotalCollected = pagos
-    .filter((p: any) => p.estatus_pago === 'Pagado')
-    .reduce((sum: number, p: any) => sum + p.monto, 0);
+  // Calculate KPIs from loaded pagos
+  const paidPagos = pagos.filter((p: any) => p.estatus_pago === 'Pagado');
+  const pendingPagos = pagos.filter((p: any) => p.estatus_pago !== 'Pagado');
+  const overduePagos = pendingPagos.filter((p: any) => {
+    const dueDate = new Date(p.fecha_pago);
+    const today = new Date();
+    return dueDate < today;
+  });
   
-  const originalTotalPending = pagos
-    .filter((p: any) => p.estatus_pago !== 'Pagado')
-    .reduce((sum: number, p: any) => sum + p.monto, 0);
+  const totalCollected = paidPagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0);
+  const totalPending = pendingPagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0);
+  const overdueAmount = overduePagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0);
 
   // Categorize pagos by status
   const getPaymentStatus = (pago: unknown) => {
@@ -313,7 +321,7 @@ export default function DeveloperCobranzaPage() {
     return true;
   });
 
-  // Calculate KPIs based on current filters and active tab
+  // Calculate KPIs based on current filters and active tab for display counts
   const getFilteredPagosForTab = (tab: string) => {
     switch (tab) {
       case 'pagados':
@@ -326,13 +334,9 @@ export default function DeveloperCobranzaPage() {
   };
   
   const currentTabPagos = getFilteredPagosForTab(activeTab);
-  const paidPagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
-  const overduePagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'overdue');
-  const upcomingPagos = filteredPagos.filter((p: any) => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
-  
-  // Recalculate totals based on current filters
-  const filteredTotalCollected = paidPagos.reduce((sum: number, p: any) => sum + p.monto, 0);
-  const filteredTotalPending = upcomingPagos.concat(overduePagos).reduce((sum: number, p: any) => sum + p.monto, 0);
+  const filteredPaidPagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
+  const filteredOverduePagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'overdue');
+  const filteredUpcomingPagos = filteredPagos.filter((p: any) => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
 
   if (error) {
     return (
@@ -428,7 +432,7 @@ export default function DeveloperCobranzaPage() {
                     </div>
                     <div>
                       <CardTitle className="text-sm font-medium text-slate-600">Total Cobrado</CardTitle>
-                      <div className="text-2xl font-semibold text-emerald-700">{formatCurrency(filteredTotalCollected)}</div>
+                      <div className="text-2xl font-semibold text-emerald-700">{formatCurrency(totalCollected)}</div>
                     </div>
                   </div>
                 </CardHeader>
@@ -447,13 +451,13 @@ export default function DeveloperCobranzaPage() {
                     </div>
                     <div>
                       <CardTitle className="text-sm font-medium text-slate-600">Pendiente</CardTitle>
-                      <div className="text-2xl font-semibold text-amber-700">{formatCurrency(filteredTotalPending)}</div>
+                      <div className="text-2xl font-semibold text-amber-700">{formatCurrency(totalPending)}</div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-sm text-slate-500">
-                    {upcomingPagos.length + overduePagos.length} pagos pendientes
+                    {pendingPagos.length} pagos pendientes
                   </p>
                 </CardContent>
               </Card>
@@ -472,7 +476,7 @@ export default function DeveloperCobranzaPage() {
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-sm text-slate-500">
-                    {overduePagos.length > 0 ? 'requieren atención' : 'todos al día'}
+                    {overduePagos.length > 0 ? `${formatCurrency(overdueAmount)} vencido` : 'todos al día'}
                   </p>
                 </CardContent>
               </Card>
@@ -486,7 +490,7 @@ export default function DeveloperCobranzaPage() {
                   <div>
                     <CardTitle className="text-xl text-slate-800">Registro de Cobranza</CardTitle>
                     <p className="text-sm text-slate-500 mt-1">
-                      {filteredPagos.length} registros de pago
+                      {pagos.length} registros de pago
                     </p>
                   </div>
                   
@@ -652,8 +656,8 @@ export default function DeveloperCobranzaPage() {
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'todos' | 'pagados' | 'pendientes')} className="space-y-6">
                   <TabsList className="grid w-full max-w-md grid-cols-3 bg-slate-100 p-1">
                     <TabsTrigger value="todos" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Todos ({filteredPagos.length})</TabsTrigger>
-                    <TabsTrigger value="pagados" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pagados ({paidPagos.length})</TabsTrigger>
-                    <TabsTrigger value="pendientes" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pendientes ({upcomingPagos.length + overduePagos.length})</TabsTrigger>
+                    <TabsTrigger value="pagados" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pagados ({filteredPaidPagos.length})</TabsTrigger>
+                    <TabsTrigger value="pendientes" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pendientes ({filteredUpcomingPagos.length + filteredOverduePagos.length})</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="todos">
@@ -780,7 +784,7 @@ export default function DeveloperCobranzaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {paidPagos.map((pago: any) => (
+                        {filteredPaidPagos.map((pago: any) => (
                           <TableRow key={pago.id_pago}>
                             <TableCell>
                               <div className="font-medium">
@@ -827,7 +831,7 @@ export default function DeveloperCobranzaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[...overduePagos, ...upcomingPagos]
+                        {[...filteredOverduePagos, ...filteredUpcomingPagos]
                           .sort((a: any, b: any) => new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime())
                           .map((pago: any) => {
                             const status = getPaymentStatus(pago);

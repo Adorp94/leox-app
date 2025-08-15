@@ -185,7 +185,127 @@ export const ventasService = {
     return data;
   },
 
-  // Get payment records by project using the complete view
+  // Get payment summary/KPIs by project (no row limit issues)
+  async getPaymentSummaryByProject(proyectoId: number) {
+    // Get project name first
+    const { data: proyecto, error: proyectoError } = await supabase
+      .from('proyectos')
+      .select('nombre')
+      .eq('id_proyecto', proyectoId)
+      .single();
+    
+    if (proyectoError) throw proyectoError;
+
+    // Get aggregated summary data using RPC or direct aggregation
+    const { data, error } = await supabase
+      .rpc('get_payment_summary_by_project', {
+        proyecto_name: proyecto.nombre
+      });
+
+    if (error) {
+      // Fallback to basic query if RPC doesn't exist
+      console.log('RPC not available, using basic aggregation');
+      const { data: basicData, error: basicError } = await supabase
+        .from('vw_historial_pagos')
+        .select('estatus_pago, monto')
+        .eq('proyecto_nombre', proyecto.nombre);
+      
+      if (basicError) throw basicError;
+      
+      // Calculate summary manually
+      const totalPaid = basicData?.filter(p => p.estatus_pago === 'Pagado')
+        .reduce((sum, p) => sum + Number(p.monto), 0) || 0;
+      const totalPending = basicData?.filter(p => p.estatus_pago !== 'Pagado')
+        .reduce((sum, p) => sum + Number(p.monto), 0) || 0;
+      const paidCount = basicData?.filter(p => p.estatus_pago === 'Pagado').length || 0;
+      const pendingCount = basicData?.filter(p => p.estatus_pago !== 'Pagado').length || 0;
+      
+      return {
+        total_paid: totalPaid,
+        total_pending: totalPending,
+        paid_count: paidCount,
+        pending_count: pendingCount,
+        total_count: (basicData?.length || 0)
+      };
+    }
+    
+    return data;
+  },
+
+  // Get paginated payment records by project
+  async getPaginatedPagosByProject(proyectoId: number, page = 0, pageSize = 50, filters = {}) {
+    // Get project name first
+    const { data: proyecto, error: proyectoError } = await supabase
+      .from('proyectos')
+      .select('nombre')
+      .eq('id_proyecto', proyectoId)
+      .single();
+    
+    if (proyectoError) throw proyectoError;
+
+    let query = supabase
+      .from('vw_historial_pagos')
+      .select('*', { count: 'exact' })
+      .eq('proyecto_nombre', proyecto.nombre);
+
+    // Apply filters
+    if (filters.client) {
+      query = query.eq('nombre_cliente', filters.client);
+    }
+    if (filters.status) {
+      query = query.eq('estatus_pago', filters.status);
+    }
+    if (filters.searchTerm) {
+      query = query.or(`nombre_cliente.ilike.%${filters.searchTerm}%,num_unidad.ilike.%${filters.searchTerm}%,concepto_pago.ilike.%${filters.searchTerm}%`);
+    }
+    if (filters.dateFrom) {
+      query = query.gte('fecha_pago', filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      query = query.lte('fecha_pago', filters.dateTo);
+    }
+
+    // Apply pagination and ordering
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    
+    const { data, error, count } = await query
+      .order('fecha_pago', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    // Transform to match PagoRecord interface
+    const transformedData = data?.map(item => ({
+      id_pago: item.id_pago,
+      id_venta: item.id_venta,
+      monto: item.monto,
+      fecha_pago: item.fecha_pago,
+      fecha_vencimiento: item.fecha_vencimiento,
+      concepto_pago: item.concepto_pago,
+      estatus_pago: item.estatus_pago,
+      ventas_contratos: {
+        clientes: {
+          nombre_cliente: item.nombre_cliente,
+          correo: null
+        },
+        inventario: {
+          num_unidad: item.num_unidad,
+          id_proyecto: proyectoId
+        }
+      }
+    })) || [];
+
+    return {
+      data: transformedData,
+      count: count,
+      hasMore: (from + pageSize) < (count || 0),
+      page: page,
+      pageSize: pageSize
+    };
+  },
+
+  // Get payment records by project - FIXED with proper pagination
   async getPagosByProject(proyectoId: number) {
     // First get project name to filter by
     const { data: proyecto, error: proyectoError } = await supabase
@@ -196,16 +316,44 @@ export const ventasService = {
     
     if (proyectoError) throw proyectoError;
     
-    const { data, error } = await supabase
-      .from('vw_historial_pagos')
-      .select('*')
-      .eq('proyecto_nombre', proyecto.nombre)
-      .order('fecha_pago', { ascending: false });
+    // Get all records by fetching in batches to overcome the 1000 row limit
+    let allData: any[] = [];
+    let hasMore = true;
+    let page = 0;
+    const batchSize = 1000;
     
-    if (error) throw error;
+    while (hasMore) {
+      const from = page * batchSize;
+      const to = from + batchSize - 1;
+      
+      const { data, error } = await supabase
+        .from('vw_historial_pagos')
+        .select('*')
+        .eq('proyecto_nombre', proyecto.nombre)
+        .order('fecha_pago', { ascending: false })
+        .range(from, to);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        hasMore = data.length === batchSize; // If we got a full batch, there might be more
+        page++;
+      } else {
+        hasMore = false;
+      }
+      
+      // Safety check to prevent infinite loops
+      if (page > 10) {
+        console.warn('Too many pages, stopping pagination');
+        break;
+      }
+    }
+    
+    console.log(`✅ Loaded ${allData.length} total payment records for ${proyecto.nombre}`);
     
     // Transform to match PagoRecord interface
-    return data?.map(item => ({
+    return allData?.map(item => ({
       id_pago: item.id_pago,
       id_venta: item.id_venta,
       monto: item.monto,
@@ -282,7 +430,8 @@ export const ventasService = {
       .from('vw_historial_pagos')
       .select('*')
       .in('proyecto_nombre', projectNames)
-      .order('fecha_pago', { ascending: false });
+      .order('fecha_pago', { ascending: false })
+      .limit(10000); // Increased limit to handle multiple projects
     
     if (error) throw error;
     
