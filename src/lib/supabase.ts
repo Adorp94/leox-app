@@ -316,12 +316,21 @@ export const ventasService = {
     return data as VentaPagoRecord[];
   },
 
-  // Update payment status
+  // Update payment status with proper date tracking
   async updatePagoStatus(pagoId: number, estatusPago: 'Pagado' | 'Pendiente' | 'Vencido' | 'Parcial', metodoPago?: string, referencia?: string, notas?: string) {
+    const now = new Date().toISOString();
     const updateData: any = {
       estatus_pago: estatusPago,
-      updated_at: new Date().toISOString()
+      fecha_status_cambio: now,
+      updated_at: now
     };
+
+    // Set fecha_pago only when marking as paid
+    if (estatusPago === 'Pagado') {
+      updateData.fecha_pago = new Date().toISOString().split('T')[0]; // Current date
+    } else {
+      updateData.fecha_pago = null; // Clear payment date for non-paid statuses
+    }
 
     if (metodoPago) updateData.metodo_pago = metodoPago;
     if (referencia) updateData.referencia = referencia;
@@ -368,7 +377,7 @@ export const inventarioService = {
       .from('inventario')
       .select(`
         *,
-        proyectos(nombre, id_desarrollador)
+        proyectos!inventario_id_proyecto_fkey(nombre, id_desarrollador)
       `)
       .order('num_unidad', { ascending: true });
     
@@ -381,7 +390,7 @@ export const inventarioService = {
       .from('inventario')
       .select(`
         *,
-        proyectos(nombre, id_desarrollador)
+        proyectos!inventario_id_proyecto_fkey(nombre, id_desarrollador)
       `)
       .eq('id_proyecto', proyectoId)
       .order('num_unidad', { ascending: true });
@@ -395,7 +404,7 @@ export const inventarioService = {
       .from('inventario')
       .select(`
         *,
-        proyectos!inner(nombre, id_desarrollador)
+        proyectos!inventario_id_proyecto_fkey(nombre, id_desarrollador)
       `)
       .eq('proyectos.id_desarrollador', desarrolladorId)
       .order('num_unidad', { ascending: true });
@@ -409,7 +418,7 @@ export const inventarioService = {
       .from('inventario')
       .select(`
         *,
-        proyectos(nombre, id_desarrollador)
+        proyectos!inventario_id_proyecto_fkey(nombre, id_desarrollador)
       `)
       .eq('id_inventario', idInventario)
       .single();

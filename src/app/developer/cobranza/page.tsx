@@ -74,6 +74,22 @@ import {
   formatDate
 } from '@/lib/format';
 import { mockUsers } from '@/lib/mock-data';
+
+// Helper function to safely format dates
+const safeFormatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return 'Sin fecha';
+  
+  try {
+    const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'Fecha inválida';
+    }
+    return formatDate(date);
+  } catch (error) {
+    return 'Fecha inválida';
+  }
+};
 import { 
   ventasService, 
   proyectosService,
@@ -209,13 +225,22 @@ export default function DeveloperCobranzaPage() {
   // Categorize pagos by status
   const getPaymentStatus = (pago: unknown) => {
     const pagoObj = pago as Record<string, unknown>;
-    const dueDate = new Date((pagoObj.fecha_vencimiento || pagoObj.fecha_pago) as string);
-    const today = new Date();
-    const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
+    // If already paid, return paid status
     if (pagoObj.estatus_pago === 'Pagado') return 'paid';
-    if (daysDiff < 0) return 'overdue';
-    if (daysDiff <= 7) return 'due-soon';
+    
+    // For pending payments, use fecha_pago as the due date (original intended design)
+    if (pagoObj.fecha_pago) {
+      const dueDate = new Date(pagoObj.fecha_pago as string);
+      const today = new Date();
+      const daysDiff = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff < 0) return 'overdue';
+      if (daysDiff <= 7) return 'due-soon';
+      return 'upcoming';
+    }
+    
+    // If no due date, treat as current obligation
     return 'upcoming';
   };
 
@@ -672,7 +697,7 @@ export default function DeveloperCobranzaPage() {
                                 {formatCurrency(pago.monto)}
                               </TableCell>
                               <TableCell>
-                                {formatDate(new Date(pago.fecha_pago))}
+                                {safeFormatDate(pago.fecha_pago)}
                               </TableCell>
                               <TableCell>
                                 {status === 'paid' && (
@@ -779,7 +804,7 @@ export default function DeveloperCobranzaPage() {
                               {formatCurrency(pago.monto)}
                             </TableCell>
                             <TableCell>
-                              {formatDate(new Date(pago.fecha_pago))}
+                              {safeFormatDate(pago.fecha_pago)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -830,7 +855,7 @@ export default function DeveloperCobranzaPage() {
                                   {formatCurrency(pago.monto)}
                                 </TableCell>
                                 <TableCell>
-                                  {formatDate(new Date(pago.fecha_pago))}
+                                  {safeFormatDate(pago.fecha_pago)}
                                 </TableCell>
                                 <TableCell>
                                   {status === 'overdue' && (
@@ -1075,14 +1100,16 @@ export default function DeveloperCobranzaPage() {
                 {/* Payment Dates */}
                 <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-200">
                   <div>
-                    <label className="text-sm font-medium text-slate-500">Fecha de Pago</label>
-                    <p className="text-base text-slate-800">{formatDate(new Date(selectedPaymentDetail.fecha_pago))}</p>
+                    <label className="text-sm font-medium text-slate-500">
+                      {selectedPaymentDetail.estatus_pago === 'Pagado' ? 'Fecha de Pago' : 'Fecha de Vencimiento'}
+                    </label>
+                    <p className="text-base text-slate-800">{safeFormatDate(selectedPaymentDetail.fecha_pago)}</p>
                   </div>
                   
-                  {selectedPaymentDetail.fecha_vencimiento && (
+                  {selectedPaymentDetail.fecha_vencimiento && selectedPaymentDetail.estatus_pago === 'Pagado' && (
                     <div>
-                      <label className="text-sm font-medium text-slate-500">Fecha de Vencimiento</label>
-                      <p className="text-base text-slate-800">{formatDate(new Date(selectedPaymentDetail.fecha_vencimiento))}</p>
+                      <label className="text-sm font-medium text-slate-500">Fecha de Vencimiento Original</label>
+                      <p className="text-base text-slate-800">{safeFormatDate(selectedPaymentDetail.fecha_vencimiento)}</p>
                     </div>
                   )}
                 </div>

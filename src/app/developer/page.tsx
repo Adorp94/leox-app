@@ -241,8 +241,38 @@ export default function DeveloperDashboardPage() {
   const pendingPayments = pagos.filter((pago: any) => pago.estatus_pago === 'Pendiente');
   const paidPayments = pagos.filter((pago: any) => pago.estatus_pago === 'Pagado');
   
-  // Calculate totals using estatus_pago field
-  const totalPendingAmount = pendingPayments.reduce((sum: number, pago: any) => 
+  // Calculate different types of pending payments based on due dates
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Set to start of day for accurate comparison
+  
+  // Categorize payments based on due dates
+  const futurePayments = pendingPayments.filter((pago: any) => {
+    if (!pago.fecha_vencimiento) return false; // No due date = treat separately
+    const dueDate = new Date(pago.fecha_vencimiento);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate >= today;
+  });
+  
+  const overduePayments = pendingPayments.filter((pago: any) => {
+    if (!pago.fecha_vencimiento) return false; // No due date = treat separately
+    const dueDate = new Date(pago.fecha_vencimiento);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate < today;
+  });
+  
+  // Payments without due dates (current obligations)
+  const currentPayments = pendingPayments.filter((pago: any) => !pago.fecha_vencimiento);
+  
+  // Calculate amounts
+  // Pendiente de Cobro: Future payments + current obligations (no due date)
+  const totalPendingAmount = [...futurePayments, ...currentPayments].reduce((sum: number, pago: any) => 
+    sum + (Number(pago.monto) || 0), 0
+  );
+  // Pagos Pendientes: Only overdue payments
+  const totalOverdueAmount = overduePayments.reduce((sum: number, pago: any) => 
+    sum + (Number(pago.monto) || 0), 0
+  );
+  const totalCurrentAmount = currentPayments.reduce((sum: number, pago: any) => 
     sum + (Number(pago.monto) || 0), 0
   );
   const totalPaidAmount = paidPayments.reduce((sum: number, pago: any) => 
@@ -270,11 +300,12 @@ export default function DeveloperDashboardPage() {
     }
   ] : [];
 
-  // Upcoming payments (próximos vencimientos)
-  const upcomingPayments = pendingPayments
-    .filter((pago: any) => pago.fecha_vencimiento)
-    .sort((a: any, b: any) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
-    .slice(0, 5);
+  // Show payments in priority order: overdue, current (no due date), then future
+  const upcomingPayments = [
+    ...overduePayments.sort((a: any, b: any) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime()),
+    ...currentPayments.slice(0, 3), // Show some current payments
+    ...futurePayments.sort((a: any, b: any) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
+  ].slice(0, 5);
 
   const selectedDesarrolladorData = desarrolladores.find(
     d => d.id_desarrollador === selectedDesarrollador
@@ -458,19 +489,42 @@ export default function DeveloperDashboardPage() {
               <div className="grid gap-2">
                 <p className="text-sm font-medium leading-none">Pendiente de Cobro</p>
                 <p className="text-2xl font-bold text-yellow-600">{formatCurrency(totalPendingAmount)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {futurePayments.length + currentPayments.length} pagos por cobrar
+                </p>
               </div>
               <div className="grid gap-2">
-                <p className="text-sm font-medium leading-none">Pagos Pendientes</p>
-                <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalPendingAmount)}</p>
-                <p className="text-xs text-muted-foreground">{pendingPayments.length} pagos pendientes</p>
+                <p className="text-sm font-medium leading-none">Pagos Vencidos</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalOverdueAmount)}</p>
+                <p className="text-xs text-muted-foreground">{overduePayments.length} pagos vencidos</p>
               </div>
             </div>
-            {pendingPayments.length > 0 && (
+            {overduePayments.length > 0 && (
               <div className="rounded-lg bg-orange-50 p-3 border border-orange-200">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-orange-600" />
                   <span className="text-sm font-medium text-orange-800">
-                    {pendingPayments.length} pagos pendientes por cobrar
+                    {overduePayments.length} pagos vencidos - {formatCurrency(totalOverdueAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {currentPayments.length > 0 && (
+              <div className="rounded-lg bg-blue-50 p-3 border border-blue-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">
+                    {currentPayments.length} pagos pendientes actuales - {formatCurrency(totalCurrentAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {futurePayments.length > 0 && (
+              <div className="rounded-lg bg-green-50 p-3 border border-green-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-800">
+                    {futurePayments.length} pagos programados para fechas futuras
                   </span>
                 </div>
               </div>
@@ -522,12 +576,12 @@ export default function DeveloperDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Upcoming Payments */}
+          {/* Payment Schedule */}
           <Card>
             <CardHeader>
-              <CardTitle>Próximos Vencimientos</CardTitle>
+              <CardTitle>Calendario de Pagos</CardTitle>
               <CardDescription>
-                Pagos programados para los próximos días
+                Pagos vencidos y próximos vencimientos
               </CardDescription>
             </CardHeader>
             <CardContent>
