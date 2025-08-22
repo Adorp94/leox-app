@@ -233,7 +233,7 @@ export const ventasService = {
   },
 
   // Get paginated payment records by project
-  async getPaginatedPagosByProject(proyectoId: number, page = 0, pageSize = 50, filters = {}) {
+  async getPaginatedPagosByProject(proyectoId: number, page = 0, pageSize = 50, filters: {client?: string, status?: string, searchTerm?: string, dateFrom?: string, dateTo?: string} = {}) {
     // Get project name first
     const { data: proyecto, error: proyectoError } = await supabase
       .from('proyectos')

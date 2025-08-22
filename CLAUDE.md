@@ -32,9 +32,11 @@ VazCRM is a Next.js 15 application using App Router with TypeScript for real est
 ```
 
 #### Data Layer Architecture
-- **Mock Data**: All data currently comes from `src/lib/mock-data.ts`
-- **Type Safety**: Comprehensive TypeScript interfaces in `src/types/index.ts`
-- **Helper Functions**: Data relationship helpers in mock-data.ts (getContractByBuyer, getPaymentsByContract, etc.)
+- **Supabase Integration**: Full PostgreSQL database integration via Supabase
+- **Real-time Data**: Live payment, sales, and inventory management
+- **Database Views**: Optimized views (vw_historial_pagos, vw_cliente_panel, vw_dashboard_remodela) for complex queries
+- **Type Safety**: Comprehensive TypeScript interfaces in `src/lib/supabase.ts`
+- **Batch Loading**: Handles large datasets with pagination to overcome 1000-row limits
 
 #### Component Architecture
 - **shadcn/ui**: UI component library with customized styling
@@ -58,21 +60,30 @@ VazCRM is a Next.js 15 application using App Router with TypeScript for real est
 - **Recharts**: Chart library for dashboard metrics
 - **date-fns**: Date formatting and manipulation
 
+#### Database Integration
+- **Supabase**: PostgreSQL database with real-time subscriptions
+- **Database Functions**: Custom RPC functions for complex aggregations
+- **Migration System**: Structured database schema with proper relationships
+- **Performance**: Optimized queries with batch loading for large datasets
+
 ### Domain Model
 
 #### Core Entities
-- **User**: Supports 'buyer' and 'developer' roles
-- **Unit**: Real estate units with detailed specifications
-- **Contract**: Links buyers to units with payment terms
-- **Payment**: Individual payment records with status tracking
-- **Tower**: Groups units with aggregate metrics
-- **Sale**: Transaction records
+- **Desarrollador**: Developer entities managing multiple projects
+- **Proyecto**: Real estate projects with inventory tracking
+- **Inventario**: Individual units with specifications and availability status
+- **Clientes**: Customer records with contact information
+- **Ventas_Contratos**: Sales contracts linking clients to units
+- **Venta_Pagos**: Payment records with status tracking and due dates
 
 #### Key Business Logic
-- Payment plan calculations and status tracking
-- Contract-to-unit-to-buyer relationships
-- Tower-level sales metrics and inventory management
-- Role-based data access patterns
+- **Payment Status Management**: Automated categorization based on due dates
+  - `fecha_pago`: Due date given to client
+  - `fecha_vencimiento`: Actual payment date (when paid)
+  - Status logic: payments due before current date = "Pagado", future dates = "Pendiente"
+- **Sales Pipeline**: Complete contract-to-payment tracking
+- **Inventory Management**: Real-time unit availability and status
+- **Multi-Project Support**: Developer dashboard aggregating across projects
 
 ### Development Patterns
 
@@ -86,14 +97,18 @@ src/
 ├── components/
 │   ├── ui/            # shadcn/ui components
 │   └── layout/        # Layout components
-├── lib/               # Utilities and mock data
+├── lib/               # Utilities and Supabase client
+│   ├── supabase.ts   # Database client and service functions
+│   ├── mock-data.ts  # Mock data for development (deprecated)
+│   └── format.ts     # Formatting utilities
 └── types/             # TypeScript type definitions
 ```
 
 #### State Management
-- No global state management (Redux, Zustand) currently implemented
-- Mock data provides all application state
-- Ready for integration with real backend APIs
+- **Local Component State**: React useState for component-level state
+- **Supabase Real-time**: Database subscriptions for live data updates
+- **Local Storage**: Persistent user preferences (selected projects, filters)
+- **No Global State**: Intentionally simple architecture without Redux/Zustand
 
 #### Styling Approach
 - Tailwind CSS with component-level styling
@@ -112,10 +127,31 @@ src/
 - All UI text and data is in Spanish
 - Date formatting uses Spanish locale patterns
 
-### Future Integration Points
-The codebase is structured to easily integrate:
-- Real authentication (NextAuth.js ready)
-- Database layer (Prisma + PostgreSQL architecture planned)
-- Payment processing systems
-- Document management and PDF generation
-- Email/SMS notification systems
+### Current Implementation Status
+
+#### Completed Features
+- ✅ **Full Database Integration**: Supabase PostgreSQL with comprehensive schema
+- ✅ **Developer Dashboard**: Multi-project overview with KPIs and charts
+- ✅ **Sales Management**: Complete sales tracking and reporting
+- ✅ **Payment Management**: Cobranza system with status tracking
+- ✅ **Inventory Tracking**: Real-time unit availability and status
+- ✅ **Data Upload System**: Bulk data processing with proper validation
+
+#### Technical Achievements
+- ✅ **Large Dataset Handling**: Batch loading to handle 1000+ payment records
+- ✅ **Database Views**: Optimized aggregation views for performance
+- ✅ **RPC Functions**: Custom database functions for complex operations
+- ✅ **Type Safety**: Full TypeScript integration with database types
+
+### Performance Considerations
+
+#### Supabase Limitations & Solutions
+- **1000 Row Limit**: Solved with batch loading using `.range()` pagination
+- **Complex Aggregations**: Use RPC functions instead of client-side calculations
+- **View Performance**: Database views (vw_historial_pagos, vw_dashboard_remodela) for optimized queries
+
+#### Best Practices Implemented
+- Batch API calls for large datasets
+- Client-side filtering after data load
+- Persistent user preferences in localStorage
+- Proper error handling and loading states

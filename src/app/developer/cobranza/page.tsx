@@ -12,19 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { 
   Table,
   TableBody,
@@ -46,7 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Calendar } from '@/components/ui/calendar';
+import { DateRangePickerOrigin } from '@/components/ui/date-range-picker-origin';
 import { 
   Building,
   DollarSign,
@@ -54,27 +41,21 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Check,
-  ChevronsUpDown,
-  TrendingUp,
-  CreditCard,
   Receipt,
   CalendarIcon,
   User,
-  Hash,
-  FileText,
   Banknote,
   Search,
   Filter,
-  X,
-  ArrowUpRight
+  X
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   formatCurrency, 
   formatDate
 } from '@/lib/format';
 import { mockUsers } from '@/lib/mock-data';
+import { toast } from 'sonner';
 
 // Helper function to safely format dates
 const safeFormatDate = (dateString: string | null | undefined): string => {
@@ -109,10 +90,8 @@ export default function DeveloperCobranzaPage() {
   
   // Filters for cobranza
   const [selectedClient, setSelectedClient] = useState<string>('');
-  const [clientFilterOpen, setClientFilterOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [dateRange, setDateRange] = useState<{from: Date | undefined, to: Date | undefined}>({from: undefined, to: undefined});
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
   
   // Active tab state
   const [activeTab, setActiveTab] = useState<'todos' | 'pagados' | 'pendientes'>('todos');
@@ -185,13 +164,13 @@ export default function DeveloperCobranzaPage() {
     fetchProjectData();
   }, [selectedProject]);
   
-  // Handle payment marking
-  const handleMarkAsPaid = async (pago: any) => {
+  // Optimize event handlers with useCallback
+  const handleMarkAsPaid = useCallback(async (pago: any) => {
     setSelectedPayment(pago);
     setPaymentDialogOpen(true);
-  };
+  }, []);
   
-  const handleSubmitPayment = async () => {
+  const handleSubmitPayment = useCallback(async () => {
     if (!selectedPayment) return;
     
     try {
@@ -211,24 +190,34 @@ export default function DeveloperCobranzaPage() {
       setPaymentDialogOpen(false);
       setSelectedPayment(null);
       setPaymentForm({ metodoPago: '', referencia: '', notas: '' });
+      
+      // Show success toast
+      toast.success('Pago registrado exitosamente');
     } catch (err) {
       console.error('Error updating payment status:', err);
-      // You could add a toast notification here
+      toast.error('Error al registrar el pago');
     }
-  };
+  }, [selectedPayment, paymentForm, selectedProject]);
 
-  // Calculate KPIs from loaded pagos
-  const paidPagos = pagos.filter((p: any) => p.estatus_pago === 'Pagado');
-  const pendingPagos = pagos.filter((p: any) => p.estatus_pago !== 'Pagado');
-  const overduePagos = pendingPagos.filter((p: any) => {
-    const dueDate = new Date(p.fecha_pago);
+  // Memoize expensive KPI calculations
+  const kpis = useMemo(() => {
+    const paidPagos = pagos.filter((p: any) => p.estatus_pago === 'Pagado');
+    const pendingPagos = pagos.filter((p: any) => p.estatus_pago !== 'Pagado');
     const today = new Date();
-    return dueDate < today;
-  });
-  
-  const totalCollected = paidPagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0);
-  const totalPending = pendingPagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0);
-  const overdueAmount = overduePagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0);
+    const overduePagos = pendingPagos.filter((p: any) => {
+      const dueDate = new Date(p.fecha_pago);
+      return dueDate < today;
+    });
+    
+    return {
+      totalCollected: paidPagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0),
+      totalPending: pendingPagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0),
+      overdueAmount: overduePagos.reduce((sum: number, p: any) => sum + Number(p.monto), 0),
+      paidCount: paidPagos.length,
+      pendingCount: pendingPagos.length,
+      overdueCount: overduePagos.length
+    };
+  }, [pagos]);
 
   // Categorize pagos by status
   const getPaymentStatus = (pago: unknown) => {
@@ -252,91 +241,106 @@ export default function DeveloperCobranzaPage() {
     return 'upcoming';
   };
 
-  // Process pagos with payment numbering and client grouping
-  const processedPagos = pagos
-    .sort((a: any, b: any) => {
-      // First sort by client name (using the corrected field name)
-      const clientA = a.ventas_contratos?.clientes?.nombre_cliente || `Cliente ${a.ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
-      const clientB = b.ventas_contratos?.clientes?.nombre_cliente || `Cliente ${b.ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
-      if (clientA !== clientB) return clientA.localeCompare(clientB);
+  // Memoize expensive processing of pagos with payment numbering and client grouping
+  const processedPagos = useMemo(() => {
+    return pagos
+      .sort((a: any, b: any) => {
+        // First sort by client name (using the corrected field name)
+        const clientA = a.ventas_contratos?.clientes?.nombre_cliente || `Cliente ${a.ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
+        const clientB = b.ventas_contratos?.clientes?.nombre_cliente || `Cliente ${b.ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
+        if (clientA !== clientB) return clientA.localeCompare(clientB);
+        
+        // Then sort by payment date
+        return new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime();
+      })
+      .map((pago: any, index: any, arr: any) => {
+        const clientName = pago.ventas_contratos?.clientes?.nombre_cliente || `Cliente ${pago.ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
+        
+        // Calculate payment number for this client
+        let paymentNumber = 1;
+        for (let i = 0; i < index; i++) {
+          const prevClientName = arr[i].ventas_contratos?.clientes?.nombre_cliente || `Cliente ${arr[i].ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
+          if (prevClientName === clientName) {
+            paymentNumber++;
+          }
+        }
+        
+        return {
+          ...pago,
+          clientName,
+          paymentNumber
+        };
+      });
+  }, [pagos]);
+
+  // Memoize unique clients for filter
+  const uniqueClients = useMemo(() => {
+    return Array.from(new Set(processedPagos.map((p: any) => p.clientName))).sort();
+  }, [processedPagos]);
+  
+  // Memoize filtered pagos to prevent recalculation on every render
+  const filteredPagos = useMemo(() => {
+    return processedPagos.filter((pago: any) => {
+      // Client filter
+      if (selectedClient && selectedClient !== '__all__' && pago.clientName !== selectedClient) {
+        return false;
+      }
       
-      // Then sort by payment date
-      return new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime();
-    })
-    .map((pago: any, index: any, arr: any) => {
-      const clientName = pago.ventas_contratos?.clientes?.nombre_cliente || `Cliente ${pago.ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
-      
-      // Calculate payment number for this client
-      let paymentNumber = 1;
-      for (let i = 0; i < index; i++) {
-        const prevClientName = arr[i].ventas_contratos?.clientes?.nombre_cliente || `Cliente ${arr[i].ventas_contratos?.inventario?.num_unidad || 'N/A'}`;
-        if (prevClientName === clientName) {
-          paymentNumber++;
+      // Search filter (search in client name, unit, concept, amount)
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const searchFields = [
+          pago.clientName,
+          pago.ventas_contratos?.inventario?.num_unidad,
+          pago.concepto_pago,
+          pago.monto?.toString()
+        ].filter(Boolean).map(field => field.toString().toLowerCase());
+        
+        if (!searchFields.some(field => field.includes(searchLower))) {
+          return false;
         }
       }
       
-      return {
-        ...pago,
-        clientName,
-        paymentNumber
-      };
-    });
-
-  // Get unique clients for filter
-  const uniqueClients = Array.from(new Set(processedPagos.map((p: any) => p.clientName))).sort();
-  
-  // Apply all filters
-  const filteredPagos = processedPagos.filter((pago: any) => {
-    // Client filter
-    if (selectedClient && pago.clientName !== selectedClient) {
-      return false;
-    }
-    
-    // Search filter (search in client name, unit, concept, amount)
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      const searchFields = [
-        pago.clientName,
-        pago.ventas_contratos?.inventario?.num_unidad,
-        pago.concepto_pago,
-        pago.monto?.toString()
-      ].filter(Boolean).map(field => field.toString().toLowerCase());
+      // Date range filter
+      if (dateRange.start || dateRange.end) {
+        const pagoDate = new Date(pago.fecha_pago);
+        if (dateRange.start && pagoDate < dateRange.start) {
+          return false;
+        }
+        if (dateRange.end && pagoDate > dateRange.end) {
+          return false;
+        }
+      }
       
-      if (!searchFields.some(field => field.includes(searchLower))) {
-        return false;
-      }
-    }
-    
-    // Date range filter
-    if (dateRange.from || dateRange.to) {
-      const pagoDate = new Date(pago.fecha_pago);
-      if (dateRange.from && pagoDate < dateRange.from) {
-        return false;
-      }
-      if (dateRange.to && pagoDate > dateRange.to) {
-        return false;
-      }
-    }
-    
-    return true;
-  });
+      return true;
+    });
+  }, [processedPagos, selectedClient, searchTerm, dateRange]);
 
-  // Calculate KPIs based on current filters and active tab for display counts
-  const getFilteredPagosForTab = (tab: string) => {
-    switch (tab) {
+  // Memoize filtered pagos by status to avoid recalculation
+  const filteredPagosByStatus = useMemo(() => {
+    const paid = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
+    const overdue = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'overdue');
+    const upcoming = filteredPagos.filter((p: any) => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
+    
+    return {
+      paid,
+      overdue,
+      upcoming,
+      all: filteredPagos
+    };
+  }, [filteredPagos]);
+
+  // Get current tab pagos
+  const currentTabPagos = useMemo(() => {
+    switch (activeTab) {
       case 'pagados':
-        return filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
+        return filteredPagosByStatus.paid;
       case 'pendientes':
-        return filteredPagos.filter((p: any) => getPaymentStatus(p) !== 'paid');
+        return [...filteredPagosByStatus.overdue, ...filteredPagosByStatus.upcoming];
       default:
-        return filteredPagos;
+        return filteredPagosByStatus.all;
     }
-  };
-  
-  const currentTabPagos = getFilteredPagosForTab(activeTab);
-  const filteredPaidPagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'paid');
-  const filteredOverduePagos = filteredPagos.filter((p: any) => getPaymentStatus(p) === 'overdue');
-  const filteredUpcomingPagos = filteredPagos.filter((p: any) => ['due-soon', 'upcoming'].includes(getPaymentStatus(p)));
+  }, [activeTab, filteredPagosByStatus]);
 
   if (error) {
     return (
@@ -432,13 +436,13 @@ export default function DeveloperCobranzaPage() {
                     </div>
                     <div>
                       <CardTitle className="text-sm font-medium text-slate-600">Total Cobrado</CardTitle>
-                      <div className="text-2xl font-semibold text-emerald-700">{formatCurrency(totalCollected)}</div>
+                      <div className="text-2xl font-semibold text-emerald-700">{formatCurrency(kpis.totalCollected)}</div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-sm text-slate-500">
-                    {paidPagos.length} pagos completados
+                    {kpis.paidCount} pagos completados
                   </p>
                 </CardContent>
               </Card>
@@ -451,13 +455,13 @@ export default function DeveloperCobranzaPage() {
                     </div>
                     <div>
                       <CardTitle className="text-sm font-medium text-slate-600">Pendiente</CardTitle>
-                      <div className="text-2xl font-semibold text-amber-700">{formatCurrency(totalPending)}</div>
+                      <div className="text-2xl font-semibold text-amber-700">{formatCurrency(kpis.totalPending)}</div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-sm text-slate-500">
-                    {pendingPagos.length} pagos pendientes
+                    {kpis.pendingCount} pagos pendientes
                   </p>
                 </CardContent>
               </Card>
@@ -470,13 +474,13 @@ export default function DeveloperCobranzaPage() {
                     </div>
                     <div>
                       <CardTitle className="text-sm font-medium text-slate-600">Vencidos</CardTitle>
-                      <div className="text-2xl font-semibold text-rose-700">{overduePagos.length}</div>
+                      <div className="text-2xl font-semibold text-rose-700">{kpis.overdueCount}</div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <p className="text-sm text-slate-500">
-                    {overduePagos.length > 0 ? `${formatCurrency(overdueAmount)} vencido` : 'todos al día'}
+                    {kpis.overdueCount > 0 ? `${formatCurrency(kpis.overdueAmount)} vencido` : 'todos al día'}
                   </p>
                 </CardContent>
               </Card>
@@ -495,158 +499,87 @@ export default function DeveloperCobranzaPage() {
                   </div>
                   
                   {/* Filters */}
-                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                  <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                     {/* Search Bar */}
-                    <div className="relative w-full sm:w-64">
+                    <div className="relative min-w-[240px] flex-1 sm:flex-initial sm:w-64">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input
                         placeholder="Buscar pagos..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 bg-white border-slate-200 focus:border-blue-300 focus:ring-blue-100"
+                        className="pl-10 bg-white border-slate-200 focus:border-blue-300 focus:ring-blue-100 h-10"
                       />
                       {searchTerm && (
-                        <span
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setSearchTerm('')}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
+                          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 hover:bg-slate-100"
                         >
-                          <X className="h-4 w-4" />
-                        </span>
+                          <X className="h-3 w-3" />
+                        </Button>
                       )}
                     </div>
                     
-                    {/* Date Range Filter */}
-                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                      <PopoverTrigger asChild>
+                    {/* Date Range Filter - Origin UI */}
+                    <div className="relative">
+                      <DateRangePickerOrigin
+                        value={dateRange}
+                        onChange={(range) => {
+                          if (range) {
+                            setDateRange(range);
+                          } else {
+                            setDateRange({ start: null, end: null });
+                          }
+                        }}
+                        placeholder="Filtrar por fecha"
+                        className="min-w-[200px]"
+                      />
+                      {(dateRange.start || dateRange.end) && (
                         <Button
-                          variant="outline"
-                          className="w-full sm:w-auto justify-start bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDateRange({ start: null, end: null })}
+                          className="absolute -top-1 -right-1 h-5 w-5 p-0 bg-slate-200 hover:bg-slate-300 rounded-full"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange.from ? (
-                            dateRange.to ? (
-                              <>
-                                {formatDate(dateRange.from)} - {formatDate(dateRange.to)}
-                              </>
-                            ) : (
-                              formatDate(dateRange.from)
-                            )
-                          ) : (
-                            <span>Filtrar por fecha</span>
-                          )}
-                          {(dateRange.from || dateRange.to) && (
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDateRange({from: undefined, to: undefined});
-                              }}
-                              className="ml-2 hover:bg-slate-200 rounded p-0.5 cursor-pointer"
-                            >
-                              <X className="h-3 w-3" />
-                            </span>
-                          )}
+                          <X className="h-3 w-3" />
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-white border-slate-200 shadow-lg" align="start">
-                        <Calendar
-                          mode="range"
-                          defaultMonth={dateRange.from || new Date()}
-                          selected={dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : dateRange.from ? { from: dateRange.from, to: undefined } : undefined}
-                          onSelect={(range) => {
-                            if (range) {
-                              setDateRange({ from: range.from, to: range.to });
-                            } else {
-                              setDateRange({ from: undefined, to: undefined });
-                            }
-                          }}
-                          numberOfMonths={2}
-                          className="rounded-lg p-3"
-                          classNames={{
-                            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                            day_today: "bg-accent text-accent-foreground font-semibold",
-                            day_range_start: "bg-primary text-primary-foreground rounded-l-md",
-                            day_range_end: "bg-primary text-primary-foreground rounded-r-md", 
-                            day_range_middle: "bg-primary/20 text-primary hover:bg-primary/30",
-                            day: "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-                            cell: "relative p-0 text-center focus-within:relative focus-within:z-20"
-                          }}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                      )}
+                    </div>
                     
-                    {/* Client Filter */}
-                    <Popover open={clientFilterOpen} onOpenChange={setClientFilterOpen}>
-                      <PopoverTrigger asChild>
+                    {/* Client Filter - Optimized Select */}
+                    <div className="flex items-center gap-2 min-w-[180px]">
+                      <User className="h-4 w-4 text-slate-500" />
+                      <Select value={selectedClient} onValueChange={setSelectedClient}>
+                        <SelectTrigger className="w-full bg-white border-slate-200 text-slate-600 hover:bg-slate-50 h-10">
+                          <SelectValue placeholder="Cliente" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-slate-200 shadow-lg max-h-[300px]">
+                          <SelectItem value="__all__">Todos los clientes</SelectItem>
+                          {uniqueClients.map((client: any) => (
+                            <SelectItem key={client} value={client}>
+                              {client}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedClient && selectedClient !== '__all__' && (
                         <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={clientFilterOpen}
-                          className="w-full sm:w-auto justify-between bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedClient('__all__')}
+                          className="h-8 w-8 p-0 hover:bg-slate-100"
                         >
-                          <User className="mr-2 h-4 w-4" />
-                          <div className="flex items-center justify-between w-full">
-                            <span className="truncate">{selectedClient || "Cliente"}</span>
-                            <div className="flex items-center gap-1 ml-2">
-                              {selectedClient && (
-                                <span
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedClient('');
-                                  }}
-                                  className="hover:bg-slate-200 rounded p-0.5 cursor-pointer"
-                                >
-                                  <X className="h-3 w-3" />
-                                </span>
-                              )}
-                              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                            </div>
-                          </div>
+                          <X className="h-3 w-3" />
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-0 bg-white border-slate-200 shadow-lg">
-                        <Command className="bg-white">
-                          <CommandInput placeholder="Buscar cliente..." className="border-0 focus:ring-0" />
-                          <CommandList className="bg-white">
-                            <CommandEmpty className="text-slate-500">No se encontró cliente.</CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                onSelect={() => {
-                                  setSelectedClient('');
-                                  setClientFilterOpen(false);
-                                }}
-                                className="hover:bg-slate-50 cursor-pointer"
-                              >
-                                <Check
-                                  className={`mr-2 h-4 w-4 ${selectedClient === '' ? "opacity-100" : "opacity-0"}`}
-                                />
-                                Todos los clientes
-                              </CommandItem>
-                              {uniqueClients.map((client: any) => (
-                                <CommandItem
-                                  key={client}
-                                  onSelect={() => {
-                                    setSelectedClient(client === selectedClient ? '' : client);
-                                    setClientFilterOpen(false);
-                                  }}
-                                  className="hover:bg-slate-50 cursor-pointer"
-                                >
-                                  <Check
-                                    className={`mr-2 h-4 w-4 ${selectedClient === client ? "opacity-100" : "opacity-0"}`}
-                                  />
-                                  {client}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                      )}
+                    </div>
                     
                     {/* Active Filters Indicator */}
-                    {(selectedClient || searchTerm || dateRange.from || dateRange.to) && (
+                    {(selectedClient && selectedClient !== '__all__' || searchTerm || dateRange.start || dateRange.end) && (
                       <div className="flex items-center gap-1 text-sm text-slate-500">
                         <Filter className="h-4 w-4" />
-                        <span>{filteredPagos.length} de {processedPagos.length}</span>
+                        <span>{filteredPagosByStatus.all.length} de {processedPagos.length}</span>
                       </div>
                     )}
                   </div>
@@ -655,9 +588,9 @@ export default function DeveloperCobranzaPage() {
               <CardContent>
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'todos' | 'pagados' | 'pendientes')} className="space-y-6">
                   <TabsList className="grid w-full max-w-md grid-cols-3 bg-slate-100 p-1">
-                    <TabsTrigger value="todos" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Todos ({filteredPagos.length})</TabsTrigger>
-                    <TabsTrigger value="pagados" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pagados ({filteredPaidPagos.length})</TabsTrigger>
-                    <TabsTrigger value="pendientes" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pendientes ({filteredUpcomingPagos.length + filteredOverduePagos.length})</TabsTrigger>
+                    <TabsTrigger value="todos" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Todos ({filteredPagosByStatus.all.length})</TabsTrigger>
+                    <TabsTrigger value="pagados" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pagados ({filteredPagosByStatus.paid.length})</TabsTrigger>
+                    <TabsTrigger value="pendientes" className="data-[state=active]:bg-white data-[state=active]:text-slate-900 font-medium">Pendientes ({filteredPagosByStatus.upcoming.length + filteredPagosByStatus.overdue.length})</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="todos">
@@ -675,7 +608,7 @@ export default function DeveloperCobranzaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredPagos.map((pago: any) => {
+                        {currentTabPagos.map((pago: any) => {
                           const status = getPaymentStatus(pago);
                           return (
                             <TableRow key={pago.id_pago}>
@@ -760,7 +693,7 @@ export default function DeveloperCobranzaPage() {
                         })}
                       </TableBody>
                     </Table>
-                    {filteredPagos.length === 0 && (
+                    {currentTabPagos.length === 0 && (
                       <div className="text-center py-8">
                         <DollarSign className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                         <h3 className="text-lg font-semibold mb-2">No hay pagos para mostrar</h3>
@@ -784,7 +717,7 @@ export default function DeveloperCobranzaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredPaidPagos.map((pago: any) => (
+                        {filteredPagosByStatus.paid.map((pago: any) => (
                           <TableRow key={pago.id_pago}>
                             <TableCell>
                               <div className="font-medium">
@@ -831,7 +764,7 @@ export default function DeveloperCobranzaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[...filteredOverduePagos, ...filteredUpcomingPagos]
+                        {[...filteredPagosByStatus.overdue, ...filteredPagosByStatus.upcoming]
                           .sort((a: any, b: any) => new Date(a.fecha_pago).getTime() - new Date(b.fecha_pago).getTime())
                           .map((pago: any) => {
                             const status = getPaymentStatus(pago);
